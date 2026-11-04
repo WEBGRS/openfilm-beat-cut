@@ -18,15 +18,17 @@ node skills/beat-cut/scripts/beats.mjs check               # in the film's folde
 
 The measure (`openfilm-beats/1`) has the tempo, every beat, the first beat of each bar, the hits that stand out from
 the onsets around them, each bar's level, quiet / mid / loud sections, and the bar where the music rises most. The
-page draws all of it over the waveform with a player. `check` reads film.html, finds the music (the clip named with
-`--music`, else the longest sound with no `.vtt` beside it, so a voice-over is never taken for the music), follows its
-`at`, `#t=` and `speed`, and lists every picture cut with how many frames it is from the nearest beat; `--strict`
-exits 1 while one is more than a frame off.
+page draws the beats, bars, hits and the quiet and loud sections over the waveform, with a player. `check` reads
+film.html, finds the music (the clip named with `--music`, else the longest sound with no `.vtt` beside it, so a
+voice-over is never taken for the music), follows its `at`, `#t=` and `speed`, and lists every picture cut over the
+music with how many frames it is from the nearest beat (the measure goes to `beats/` beside film.html, or `--out`);
+`--strict` exits 1 while one is more than a frame off. It measures against beats only: a cut on a half beat or a hit
+shows as off.
 
 How it measures: the sound at 22.05 kHz, 40 pitch-spaced bands, onset strength from the rise in each band; the tempo
 from the onset strength's autocorrelation, weighted toward 120 BPM; the beats by dynamic programming (Ellis 2007);
 the bar's first beat from the kick and bass, the change of harmony bar to bar, and the beat's accent. Node and ffmpeg
-only, no packages. A seven-minute track takes about 7 s on a laptop.
+only, no packages. A seven-minute track takes under half a minute on a laptop.
 
 How well, measured with `tools/`:
 
@@ -61,7 +63,7 @@ It needs Node 22 or later and ffmpeg on the PATH (OpenFilm needs ffmpeg too). It
 ## Develop
 
 ```sh
-npm test            # synthetic music with a known grid, film.html parsing, check (a few seconds)
+npm test            # synthetic music with a known grid, film.html parsing, check (about 15 s)
 npm run check       # the skill folder against OpenFilm's skill rules
 node tools/oracle-xsxb.mjs [XSXB-Band exports folder]                 # a local folder of renders, not in this repository
 node tools/oracle-tempo.mjs <music folder> <incompetech pieces.json>   # local downloads too
@@ -72,7 +74,7 @@ node tools/drift.mjs
 
 OpenFilm 技能：跟着音乐剪片。每次换画面都踩在拍子上，换场景落在小节第一拍，最好的镜头放在音乐起来的地方，安静的段落镜头长、热闹的段落镜头短。
 
-智能体听不见，但能读数字，所以这个技能唯一的脚本把音乐和片子的剪辑点都变成数字：`beats.mjs <音乐>` 测出速度、每一拍、每小节第一拍、比周围更突出的重音、每小节的响度、安静/中等/热闹的段落和音乐上扬最多的那一小节，写成 `beats/<名字>.json` 和一张能播放的波形页；`snap` 把秒数吸附到最近的拍、半拍、小节或重音；`check` 读 film.html，找到音乐（`--music` 指定的那段，否则是旁边没有 `.vtt` 的最长一段声音，所以不会把配音当成音乐），按它的 `at`、`#t=`、`speed` 换算，逐个列出画面剪辑点离最近的拍子差几帧，`--strict` 在有超过一帧的点时返回 1。只用 Node 和 ffmpeg，七分钟的曲子约 7 秒。
+智能体听不见，但能读数字，所以这个技能唯一的脚本把音乐和片子的剪辑点都变成数字：`beats.mjs <音乐>` 测出速度、每一拍、每小节第一拍、比周围更突出的重音、每小节的响度、安静/中等/热闹的段落和音乐上扬最多的那一小节，写成 `beats/<名字>.json` 和一张能播放的波形页；`snap` 把秒数吸附到最近的拍、半拍、小节或重音；`check` 读 film.html，找到音乐（`--music` 指定的那段，否则是旁边没有 `.vtt` 的最长一段声音，所以不会把配音当成音乐），按它的 `at`、`#t=`、`speed` 换算，逐个列出音乐范围内的画面剪辑点离最近的拍子差几帧（测量结果写到 film.html 旁边的 `beats/`，或 `--out` 指定的文件夹），`--strict` 在有超过一帧的点时返回 1；它只对照整拍，剪在半拍或重音上的点也会显示为偏离。只用 Node 和 ffmpeg，七分钟的曲子半分钟以内测完。
 
 准确度（`tools/` 里的脚本可复现）：Incompetech 10 首对照官网标注的 BPM，9 首误差在 1 BPM 内，第 10 首（Realizer，125）测成一半 62.4，脚本会提示「也可能是 124.8」，加 `--bpm 124.8` 后测得 125.3。XSXB-Band 渲染的 14 首（MIDI 给出真实节拍）里，节拍清楚的 11 首速度全对，节拍 F 值 0.86–1.00，小节 0.82–1.00；3 首氛围铺底失败，它们的 `steady` 都低于 0.25，脚本和需求书都会按「节拍不明显，按重音和乐句剪」处理。小节第一拍拿不准时脚本会说，可以用 `--bar <某个小节开头的秒数>` 指定。
 

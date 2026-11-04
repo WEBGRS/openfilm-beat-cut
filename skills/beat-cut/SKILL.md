@@ -32,15 +32,16 @@ this, however good the shots.
 `node <this skill's folder>/scripts/beats.mjs <music>` measures a piece of music into `beats/<name>.json` and
 `beats/<name>.html` (the waveform with every beat, bar and hit, playable): its tempo, every beat, the first beat of each
 bar, the hits that stand out, how loud each bar is, quiet and loud sections, and the bar where it lifts. All times
-are seconds of the music file; a music clip placed at `at` and trimmed from `in` puts music second m at film second
-`at + (m − in)`. When the run says the tempo may be double or half, or the bars are a guess, look at the page and
-run again with `--bpm` or `--bar <a second that starts a bar>`; under `steady 0.25` the music has little beat, so cut
-on its hits and phrases.
+are seconds of the music file; a music clip placed at `at` and trimmed with `#t=in` puts music second m at film second
+`at + (m − in) / speed` (speed 1 unless set). When the run names another tempo, or the bars are a guess, look at
+the page and run again with `--bpm` or `--bar <a second that starts a bar>`; under `steady 0.25` the music has
+little beat, so cut on its hits and phrases.
 
 `beats.mjs snap <beats/name.json> <seconds…> --to beat|half|bar|hit` gives the nearest mark to each second.
 `beats.mjs check` (in the film's folder) lists every picture cut of film.html with how many frames it is from the
-music's nearest beat; `--strict` exits 1 while any is off. Run it after each round of cuts, and `look` the frames on
-either side of the cuts that matter.
+music's nearest beat; `--strict` exits 1 while any is more than a frame off. It measures against beats only, so a cut
+on a half beat or a hit shows as off: name it. Run it after each round of cuts, and `look` the frames on either side
+of the cuts that matter.
 
 Music comes from the person, from `npx openfilm get music`, or from a library whose licence lets them use it. Footage
 with speech has its words with `npx openfilm get asr --src <clip>`; logging a folder of clips shot by shot is the

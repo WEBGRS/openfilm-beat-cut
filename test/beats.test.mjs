@@ -70,8 +70,8 @@ test('film.html: tracks top first, comments, styles and quoted ">" left as they 
 });
 
 /** A project: music at 1 s trimmed from 0.5 s, a voice with words, pictures cut on its beats but one 5 frames late. */
-function project() {
-  const dir = join(scratch, 'film');
+function project(name = 'film') {
+  const dir = join(scratch, name);
   mkdirSync(join(dir, 'assets'), { recursive: true });
   const beats = grid({ bpm: 120, seconds: 20, start: 0.25 });
   wav(join(dir, 'assets', 'song.wav'), beats, { seconds: 20 });
@@ -125,4 +125,16 @@ test('the command line: a measure written as JSON and a page; check --strict exi
   assert.match(strict.stdout, /OFF /);
   const missing = spawnSync(process.execPath, [SCRIPT, join(dir, 'none.wav')], { encoding: 'utf8' });
   assert.equal(missing.status, 2);
+});
+
+test('check --out writes the measure there, not into the project\'s beats/; without it, beats/', () => {
+  const { dir } = project('film-out');
+  const out = join(scratch, 'check-out');
+  const told = spawnSync(process.execPath, [SCRIPT, 'check', 'film.html', '--out', out], { cwd: dir, encoding: 'utf8' });
+  assert.equal(told.status, 0, told.stdout + told.stderr);
+  assert.ok(existsSync(join(out, 'song.json')), 'measure in --out');
+  assert.ok(!existsSync(join(dir, 'beats')), 'nothing in the project\'s beats/');
+  const plain = spawnSync(process.execPath, [SCRIPT, 'check', 'film.html'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(plain.status, 0, plain.stdout + plain.stderr);
+  assert.ok(existsSync(join(dir, 'beats', 'song.json')), 'measure in beats/ without --out');
 });

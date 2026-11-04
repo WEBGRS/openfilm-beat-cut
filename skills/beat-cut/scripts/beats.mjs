@@ -9,7 +9,7 @@
  *       second that is a bar's first beat, when they are known (from the music's source, or by listening)
  *   node beats.mjs snap <beats.json> <seconds…> [--to beat|half|bar|hit]
  *       the nearest beat (half beat, bar, hit) to each music second
- *   node beats.mjs check [film.html] [--music <clip id or file>] [--fps 30] [--json] [--strict]
+ *   node beats.mjs check [film.html] [--music <clip id or file>] [--fps 30] [--out <dir>] [--json] [--strict]
  *       every picture cut of the film, in frames from the music's nearest beat; --strict exits 1 when one is off
  *
  * The measure, format "openfilm-beats/1", every time in the music file's own seconds:
@@ -590,7 +590,7 @@ async function main(/** @type {string[]} */ argv) {
     else if (argv[k].startsWith('--')) flags.set(argv[k], argv[++k]);
     else rest.push(argv[k]);
   }
-  const usage = 'node beats.mjs <music> [--out beats] [--meter 4] [--bpm <n>] [--bar <seconds>]\n       node beats.mjs snap <beats.json> <seconds…> [--to beat|half|bar|hit]\n       node beats.mjs check [film.html] [--music <clip id or file>] [--fps 30] [--json] [--strict]';
+  const usage = 'node beats.mjs <music> [--out beats] [--meter 4] [--bpm <n>] [--bar <seconds>]\n       node beats.mjs snap <beats.json> <seconds…> [--to beat|half|bar|hit]\n       node beats.mjs check [film.html] [--music <clip id or file>] [--fps 30] [--out <dir>] [--json] [--strict]';
   if (!rest.length || rest[0] === '--help' || flags.has('--help')) { console.log(usage); return 0; }
   if (rest[0] === 'snap') {
     const m = JSON.parse(readFileSync(rest[1], 'utf8'));
@@ -600,7 +600,7 @@ async function main(/** @type {string[]} */ argv) {
   }
   if (rest[0] === 'check') {
     const film = rest[1] ?? 'film.html';
-    const r = await check(film, { music: flags.get('--music'), fps: flags.has('--fps') ? Number(flags.get('--fps')) : undefined });
+    const r = await check(film, { music: flags.get('--music'), fps: flags.has('--fps') ? Number(flags.get('--fps')) : undefined, out: flags.get('--out') });
     if (flags.has('--json')) console.log(JSON.stringify(r, null, 1));
     else {
       console.log(`music ${r.music.id} (${r.music.bpm} BPM, steady ${r.music.steady}); ${r.cuts.length} cuts over it, ${r.onBeat} on a beat (within a frame at ${r.fps} fps)`);

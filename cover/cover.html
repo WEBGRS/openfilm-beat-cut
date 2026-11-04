@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  /* 1600x900 cover: the music's waveform with its beats, the shots below cut on them */
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1600px; height: 900px; }
+  body { background: #f4f1ea; position: relative; overflow: hidden; }
+  .wave { position: absolute; width: 8px; border-radius: 4px; background: #1d1b18; }
+  .beat { position: absolute; top: 200px; width: 3px; height: 330px; background: #c9c2b4; border-radius: 2px; }
+  .beat.bar { width: 5px; background: #e0572d; }
+  .shot { position: absolute; top: 560px; height: 150px; border: 3px solid #e0572d; border-radius: 16px; background: #fff; overflow: hidden; }
+  .shot i { position: absolute; background: #d9d3c6; }
+</style>
+</head>
+<body>
+  <div id="art"></div>
+  <script>
+    const art = document.getElementById('art');
+    const left = 140, step = 82, beats = 17;
+    /* the waveform: louder on each beat, louder still in the second half */
+    for (let x = left - 20; x < left + step * (beats - 1) + 20; x += 14) {
+      const k = (x - left) / step, near = Math.abs(k - Math.round(k));
+      const h = (30 + 120 * Math.exp(-near * 9)) * (k > 8 ? 1.25 : 0.8) + 14 * Math.sin(x * 0.7);
+      const w = document.createElement('div');
+      w.className = 'wave';
+      Object.assign(w.style, { left: x + 'px', top: 365 - h / 2 + 'px', height: h + 'px', opacity: 0.85 });
+      art.appendChild(w);
+    }
+    for (let k = 0; k < beats; k++) {
+      const b = document.createElement('div');
+      b.className = 'beat' + (k % 4 === 0 ? ' bar' : '');
+      b.style.left = left + k * step - (k % 4 === 0 ? 2 : 1) + 'px';
+      art.appendChild(b);
+    }
+    /* shots from beat to beat: long in the quiet half, short where it lifts */
+    const cuts = [0, 4, 8, 10, 12, 13, 14, 16];
+    const shapes = [{ l: 40, t: 40, w: 70, h: 70, r: '50%' }, { l: 30, t: 70, w: 200, h: 40, r: '8px' }, { l: 50, t: 20, w: 90, h: 90, r: '10px' }, { l: 30, t: 45, w: 60, h: 60, r: '50%' }, { l: 20, t: 30, w: 30, h: 80, r: '8px' }, { l: 20, t: 55, w: 40, h: 40, r: '50%' }, { l: 25, t: 25, w: 50, h: 50, r: '8px' }];
+    cuts.slice(0, -1).forEach((c, j) => {
+      const s = document.createElement('div');
+      s.className = 'shot';
+      Object.assign(s.style, { left: left + c * step + 6 + 'px', width: (cuts[j + 1] - c) * step - 12 + 'px' });
+      const sh = document.createElement('i');
+      const p = shapes[j];
+      Object.assign(sh.style, { left: p.l + 'px', top: p.t + 'px', width: p.w + 'px', height: p.h + 'px', borderRadius: p.r });
+      s.appendChild(sh);
+      art.appendChild(s);
+    });
+  </script>
+</body>
+</html>

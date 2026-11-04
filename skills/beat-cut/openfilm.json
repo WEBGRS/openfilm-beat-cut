@@ -1,0 +1,29 @@
+{
+  "version": "0.1.0",
+  "repository": "https://github.com/WEBGRS/openfilm-beat-cut/tree/main/skills/beat-cut",
+  "kind": "workflow",
+  "order": 25,
+  "icon": "music",
+  "cover": "cover.jpg",
+  "title": {
+    "en": "Cut on the beat",
+    "zh-CN": "音乐卡点",
+    "ja": "ビートに合わせて編集",
+    "ko": "비트에 맞춘 편집",
+    "es": "Montaje al ritmo"
+  },
+  "summary": {
+    "en": "A film cut to its music: every change on a beat, scene changes on the bars, the best shot where the music lifts.",
+    "zh-CN": "跟着音乐剪：每次换画面都踩在拍子上，换场景落在小节开头，最好的镜头放在音乐起来的地方。",
+    "ja": "音楽に合わせて編集。画面の切り替えはすべて拍に、場面転換は小節の頭に、いちばんのショットは曲が盛り上がるところに。",
+    "ko": "음악에 맞춰 편집합니다. 화면 전환은 모두 박자에, 장면 전환은 마디 첫 박에, 가장 좋은 장면은 음악이 올라가는 곳에.",
+    "es": "Una película montada a su música: cada cambio en un tiempo, los cambios de escena al inicio del compás, el mejor plano donde la música sube."
+  },
+  "details": {
+    "en": "Best for: montages, travel and event highlights, product cuts to a track, photo slideshows to music.\nWhat it does: measures the music first (tempo, beats, bars, the hits that stand out, quiet and loud parts, where it lifts), cuts your shots on those marks with the pace following the music, and checks every cut in frames against the nearest beat before handing it over.",
+    "zh-CN": "适合：混剪、旅行和活动集锦、配乐产品片、照片卡点。\n它会：先测音乐（速度、每一拍、每小节第一拍、突出的重音、安静和热闹的段落、音乐起来的位置），再把你的镜头剪在这些点上，节奏跟着音乐走；交付前逐个检查每个剪辑点离最近的拍子差几帧。",
+    "ja": "こんなときに：モンタージュ、旅行やイベントのハイライト、曲に合わせた商品動画、写真のスライドショー。\nすること：まず音楽を測り（テンポ、拍、小節の頭、目立つアクセント、静かな部分と盛り上がる部分、曲が上がる位置）、そこにショットを合わせて切り、テンポは曲に従います。渡す前に、すべてのカットが最寄りの拍から何フレームずれているかを確認します。",
+    "ko": "이럴 때: 몽타주, 여행·행사 하이라이트, 음악에 맞춘 제품 영상, 사진 슬라이드쇼.\n하는 일: 먼저 음악을 측정하고(템포, 박, 마디 첫 박, 두드러진 악센트, 조용한 부분과 큰 부분, 음악이 올라가는 위치), 그 지점에 장면을 맞춰 자르며 속도는 음악을 따릅니다. 넘기기 전에 모든 컷이 가장 가까운 박에서 몇 프레임 떨어져 있는지 확인합니다.",
+    "es": "Ideal para: montajes, resúmenes de viajes y eventos, vídeos de producto con música, presentaciones de fotos con música.\nQué hace: primero mide la música (tempo, tiempos, inicio de cada compás, los golpes que destacan, partes suaves y fuertes, dónde sube), corta tus planos en esas marcas siguiendo el ritmo de la música, y antes de entregar comprueba en fotogramas cada corte frente al tiempo más cercano."
+  }
+}

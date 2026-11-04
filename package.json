@@ -1,0 +1,13 @@
+{
+  "name": "openfilm-beat-cut",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An OpenFilm skill: cut a film on its music, every cut on a beat.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "check": "node scripts/check.mjs"
+  }
+}

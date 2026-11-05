@@ -18,37 +18,41 @@ this, however good the shots.
 - **Measured, not guessed.** Measure the music before the first cut. Every cut is on a beat, a half beat or a hit,
   within one frame, unless it sits in a pause of someone speaking; say which cuts are off and why.
 - **The music's shape is the film's shape.** Longer shots in the quiet parts, shorter in the loud; scene changes on
-  the first beat of a bar; the strongest shot on the lift; nothing new in the last bar but the ending.
-- **Pace a viewer can follow.** A shot lasts long enough to read what it shows: one beat at the fastest for a
-  picture, two or more for a shot with words or a face. Cut on every beat only in a short burst.
-- **Music that suits the film.** Its mood and speed match what the film is for. The film starts on the music's first
-  beat or a bar, and ends on a bar or the music's own end, never cut off in a phrase. Under speech, the music sits
-  low enough that every word is clear.
+  the first beat of a bar; the strongest shot on the lift.
+- **Built in phrases.** The film starts a whole number of phrases (4 or 8 bars) before the lift, and ends at the end
+  of a phrase or the music's own end, or fades over its last bar. Nothing new in the last bar but the ending.
+- **The best moment.** Look at every clip before choosing what goes on the lift. Pick the moment inside
+  a clip with `#t=`, not always from its start.
+- **Pace a viewer can follow.** A shot lasts long enough to read: one beat at the fastest for a picture, two or
+  more for words or a face; a cut on every beat only in a short burst.
+- **Music that suits the film**, in mood and speed; under speech, low enough that every word is clear.
 - **Their footage as it is.** Trimmed with `#t=`, never re-encoded or changed in speed to fit a beat: move the cut,
   or choose another moment of the clip.
 
 ## What you have
 
 `node <this skill's folder>/scripts/beats.mjs <music>` measures a piece of music into `beats/<name>.json` and
-`beats/<name>.html` (the waveform with every beat, bar and hit, playable): its tempo, every beat, the first beat of each
-bar, the hits that stand out, how loud each bar is, quiet and loud sections, and the bar where it lifts. All times
-are seconds of the music file; a music clip placed at `at` and trimmed with `#t=in` puts music second m at film second
-`at + (m − in) / speed` (speed 1 unless set). When the run names another tempo, or the bars are a guess, look at
-the page and run again with `--bpm` or `--bar <a second that starts a bar>`; under `steady 0.25` the music has
-little beat, so cut on its hits and phrases.
+`beats/<name>.html` (a playable waveform): tempo, beats, the first beat of each bar, hits, each bar's level, the
+quiet and loud sections (it prints them) and the bar where it lifts. All times are seconds of the music file; a
+music clip placed at `at` and trimmed with `#t=in` puts music second m at film second `at + (m − in) / speed`. When
+the run names another tempo, or says the bars are a guess, do what it says (`--bpm`, `--bar`). The lift is found on
+those bars: it never confirms them. Under `steady 0.25` the music has little beat: cut on its hits and phrases.
 
 `beats.mjs snap <beats/name.json> <seconds…> --to beat|half|bar|hit` gives the nearest mark to each second.
-`beats.mjs check` (in the film's folder) lists every picture cut of film.html with how many frames it is from the
-music's nearest beat; `--strict` exits 1 while any is more than a frame off. It measures against beats only, so a cut
-on a half beat or a hit shows as off: name it. Run it after each round of cuts, and `look` the frames on either side
-of the cuts that matter.
+`beats.mjs check` (in the film's folder) lists every picture cut in frames from the music's nearest
+beat, then any GAP (no picture), OVERLAP or PAST END (`#t=` beyond the file), the pace (shots and their mean length
+in each section of the music), a WARN for runs of shots of one length, and what starts at the lift. `--strict` exits 1
+on a cut more than a frame off, a GAP or a PAST END. Against beats only: name cuts on a half beat or a hit. Check passing is not the cut being done: read its pace summary (the quiet sections hold the longer shots) and
+answer every WARN.
 
-Music comes from the person, from `npx openfilm get music`, or from a library whose licence lets them use it. Footage
-with speech has its words with `npx openfilm get asr --src <clip>`; logging a folder of clips shot by shot is the
-`footage-cut` skill's `footage.mjs`, when it is installed.
+`npx openfilm look assets/<clip>` shows a clip's frames. The whole film's sheet does not show cuts: `look <t>` the cut
+at the lift, one cut in each section, and either side of the cuts that matter.
+
+Music comes from the person, `npx openfilm get music`, or a library whose licence allows it. Speech in footage:
+`npx openfilm get asr --src <clip>`. The `footage-cut` skill, when installed, logs a folder of clips shot by shot.
 
 ## With the person
 
-What they ask for comes first: the film's purpose, its length, the track or the kind of music, the shots that must
-be in it. Ask without holding up the work. When done, say in a few lines what was made: the music's tempo, how
-many cuts and how many on the beat, the shot on the lift, and any cut left off the beat on purpose.
+What they ask for comes first: purpose, length, music, the shots that must be in it. Ask without holding up the
+work. When done, say in a few lines: the tempo, cuts and how many on the beat, shots per section, the shot on the
+lift, and any cut left off the beat on purpose.

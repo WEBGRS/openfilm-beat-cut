@@ -10,15 +10,20 @@
  *   node beats.mjs snap <beats.json> <seconds…> [--to beat|half|bar|hit]
  *       the nearest beat (half beat, bar, hit) to each music second
  *   node beats.mjs check [film.html] [--music <clip id or file>] [--fps 30] [--out <dir>] [--json] [--strict]
- *       every picture cut of the film, in frames from the music's nearest beat; --strict exits 1 when one is off
+ *       every picture cut of the film, in frames from the music's nearest beat; stretches with no picture (GAP), clips
+ *       over each other on a track (OVERLAP), clips trimmed past their file's end (PAST END); the pace (shots and
+ *       their mean length in each of the music's sections), runs of four or more shots of one length (WARN), and what
+ *       starts at the lift. --strict exits 1 on a cut off the beat, a GAP or a PAST END
  *
  * The measure, format "openfilm-beats/1", every time in the music file's own seconds:
- *   { format, file, duration, bpm, meter, steady, tempos: [{ bpm, score }], beats, bars, hits: [{ t, strength, onBeat }],
- *     sound: { start, end }, loudness: [{ start, end, db }], sections: [{ start, end, level }], lift }
+ *   { format, file, duration, bpm, meter, barSure, steady, tempos: [{ bpm, score }], beats, bars, hits: [{ t, strength, onBeat }],
+ *     sound: { start, end }, loudness: [{ start, end, db }], sections: [{ start, end, level }], lift, liftBeat }
  * `beats` and `bars` are seconds (bars: the first beat of each bar). `steady` (0–1) says how clearly the music keeps a
  * beat: under 0.25 there is little to cut on, and the hits are the better marks. `loudness` is each bar's level in dB
- * under the loudest bar; `sections` group bars of a like level (quiet, mid, loud); `lift` is the bar where the music
- * rises most, or null.
+ * under the loudest bar; `sections` group bars of a like level (quiet, mid, loud), a stretch that swings between quiet
+ * and mid bars named by its mean; `lift` is the bar where the music rises most, or null. `liftBeat` is the beat where it
+ * rises most a bar either side, found without the bars (so it can say where a bar starts when `barSure` is low; `lift`
+ * cannot, being one of the bars).
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -273,6 +278,7 @@ function barStart(/** @type {number[]} */ beats, /** @type {ReturnType<typeof en
   const order = totals.map((s, p) => [s, p]).sort((a, b) => b[0] - a[0]);
   return { phase: order[0][1], sure: (order[0][0] - order[1][0]) / (order[0][0] || 1) };
 }
+const median = (/** @type {number[]} */ v) => { const s = [...v].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
 const avg = (/** @type {Float64Array} */ v) => v.reduce((a, b) => a + b, 0) / (v.length || 1);
 /** How much the harmony's change, the beat's accent and being the music's first beat count against the kick. */
 const W = { change: 1, accent: 0.5, first: 0.2 };
@@ -334,22 +340,33 @@ export async function measure(file, o = {}) {
     for (let i = a; i < z; i++) s += pcm[i] * pcm[i];
     return { start, end: edges[k + 1], db: 10 * Math.log10(s / Math.max(1, z - a) + 1e-12) };
   });
-  const top = Math.max(...raw.map((b) => b.db), -Infinity);
-  const loudness = raw.map((b) => ({ start: b.start, end: b.end, db: Math.round((b.db - top) * 10) / 10 }));
-  const level = (/** @type {number} */ db) => (db > -4 ? 'loud' : db > -10 ? 'mid' : 'quiet');
-  /** @type {{ start: number, end: number, level: string }[]} */
-  const sections = [];
-  loudness.forEach((b, k) => {
-    const here = level(b.db), next = loudness[k + 1] ? level(loudness[k + 1].db) : here;
-    const last = sections.at(-1);
-    /* a level holds for two bars before it is a section of its own */
-    if (last && (last.level === here || (here !== next && k + 1 < loudness.length))) last.end = b.end;
-    else sections.push({ start: b.start, end: b.end, level: here });
-  });
+  /* the loudest whole bar: a bar cut short by the music's end can be one hit and nothing after */
+  const whole = raw.filter((b) => b.end - b.start >= (0.5 * meter * 60) / bpm);
+  const top = Math.max(...(whole.length ? whole : raw).map((b) => b.db), -Infinity);
+  const loudness = raw.map((b) => ({ start: b.start, end: b.end, db: Math.min(0, Math.round((b.db - top) * 10) / 10) }));
+  const sections = sectionsOf(loudness);
   let lift = null, rise = 4;
   for (let k = 2; k < loudness.length; k++) {
     const up = loudness[k].db - (loudness[k - 1].db + loudness[k - 2].db) / 2;
     if (up > rise) { rise = up; lift = loudness[k].start; }
+  }
+  /* the same rise beat by beat, a bar's worth either side: found without the bars, so it can say where one starts */
+  const beatDb = beats.map((b, k) => {
+    const a = Math.floor(b * RATE), z = Math.min(pcm.length, Math.floor((beats[k + 1] ?? b + 60 / bpm) * RATE));
+    let s = 0;
+    for (let i = a; i < z; i++) s += pcm[i] * pcm[i];
+    return 10 * Math.log10(s / Math.max(1, z - a) + 1e-12);
+  });
+  /* medians, so a fill on the beat before the lift does not take it */
+  const ups = beatDb.map((_, k) => (k >= meter && k + meter <= beatDb.length ? median(beatDb.slice(k, k + meter)) - median(beatDb.slice(k - meter, k)) : -Infinity));
+  let liftBeat = null;
+  const most = ups.reduce((b, u, k) => (u > ups[b] ? k : b), 0);
+  if (ups[most] > 4) {
+    /* beats either side that rise about as much: the middle of them */
+    let a = most, z = most;
+    while (a > 0 && ups[a - 1] >= ups[most] - 0.5) a--;
+    while (z + 1 < ups.length && ups[z + 1] >= ups[most] - 0.5) z++;
+    liftBeat = beats[Math.ceil((a + z) / 2)];
   }
   return {
     format: FORMAT,
@@ -367,7 +384,57 @@ export async function measure(file, o = {}) {
     loudness,
     sections,
     lift,
+    liftBeat,
   };
+}
+
+const levelOf = (/** @type {number} */ db) => (db > -4 ? 'loud' : db > -10 ? 'mid' : 'quiet');
+
+/**
+ * Bars grouped into sections: the stretches, two bars or more, whose levels fit a single level each best, a new
+ * stretch costing `cost` dB² (two bars 4.5 dB apart); each named by its mean level, like neighbours joined. Bars that
+ * swing between quiet and mid stay one stretch, named by their mean.
+ * @param {{ start: number, end: number, db: number }[]} loudness
+ */
+export function sectionsOf(loudness, cost = 40, least = 2) {
+  const n = loudness.length;
+  if (!n) return [];
+  const sum = [0], sq = [0];
+  for (const b of loudness) { sum.push(sum.at(-1) + b.db); sq.push(sq.at(-1) + b.db * b.db); }
+  const spread = (/** @type {number} */ a, /** @type {number} */ z) => sq[z] - sq[a] - (sum[z] - sum[a]) ** 2 / (z - a);
+  const best = new Float64Array(n + 1).fill(Infinity), from = new Int32Array(n + 1).fill(-1);
+  best[0] = 0;
+  for (let z = 1; z <= n; z++) {
+    for (let a = 0; a < z; a++) {
+      if (!Number.isFinite(best[a]) || (z - a < least && n >= least)) continue;
+      const s = best[a] + spread(a, z) + cost;
+      if (s < best[z]) { best[z] = s; from[z] = a; }
+    }
+  }
+  /** @type {[number, number][]} */
+  const cuts = [];
+  for (let z = n; z > 0; z = from[z]) {
+    if (from[z] < 0) return [{ start: loudness[0].start, end: loudness[n - 1].end, level: levelOf((sum[n]) / n) }];
+    cuts.unshift([from[z], z]);
+  }
+  /** @type {{ start: number, end: number, level: string }[]} */
+  const sections = [];
+  for (const [a, z] of cuts) {
+    const level = levelOf((sum[z] - sum[a]) / (z - a));
+    const last = sections.at(-1);
+    if (last && last.level === level) last.end = loudness[z - 1].end;
+    else sections.push({ start: loudness[a].start, end: loudness[z - 1].end, level });
+  }
+  return sections;
+}
+
+/** The sections in a line: `0.8–4.7 quiet · 4.7–100.7 loud, then the lift · …`. */
+export function sectionLine(/** @type {{ sections: { start: number, end: number, level: string }[], lift: number | null }} */ m) {
+  return m.sections.map((s) => {
+    const then = m.lift != null && Math.abs(s.end - m.lift) < 1e-3 ? ', then the lift'
+      : m.lift != null && m.lift > s.start + 1e-3 && m.lift < s.end - 1e-3 ? `, lifting at ${m.lift.toFixed(1)}` : '';
+    return `${s.start.toFixed(1)}–${s.end.toFixed(1)} ${s.level}${then}`;
+  }).join(' · ');
 }
 
 /** The measure as a page to look at and listen to: the waveform, beats, bars, hits and sections, with a playhead. */
@@ -483,11 +550,19 @@ function clipOf(/** @type {{ tag: string, attrs: Record<string, string> }} */ c)
   };
 }
 
-/** How long a media file lasts, by ffprobe. */
-async function mediaLength(/** @type {string} */ file) {
-  const out = /** @type {string} */ (await run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]));
-  const s = Number(out.trim());
-  return Number.isFinite(s) ? s : undefined;
+/** @type {Map<string, Promise<number | undefined>>} */
+const probed = new Map();
+/** How long a media file lasts, by ffprobe, once per file as it is. */
+function mediaLength(/** @type {string} */ file) {
+  const st = statSync(file);
+  const key = `${resolve(file)}|${st.mtimeMs}|${st.size}`;
+  if (!probed.has(key)) {
+    probed.set(key, run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).then((out) => {
+      const s = Number(String(out).trim());
+      return Number.isFinite(s) ? s : undefined;
+    }, () => undefined));
+  }
+  return /** @type {Promise<number | undefined>} */ (probed.get(key));
 }
 
 /** A clip's length in the film, or undefined when it cannot be told without playing it. */
@@ -504,10 +579,14 @@ async function lengthOf(/** @type {ReturnType<typeof clipOf>} */ c, /** @type {s
   return len == null ? undefined : (len - c.from) / c.speed;
 }
 
-/** The measure of a music file, read from <out>/<name>.json when it is newer than the file, else made and saved. */
+/**
+ * The measure of a music file, read from <out>/<name>.json when it is newer than the file and than this script, else
+ * made and saved.
+ */
 async function measured(/** @type {string} */ file, /** @type {string} */ out) {
   const json = join(out, `${basename(file, extname(file))}.json`);
-  if (existsSync(json) && statSync(json).mtimeMs >= statSync(file).mtimeMs) {
+  const since = Math.max(statSync(file).mtimeMs, statSync(fileURLToPath(import.meta.url)).mtimeMs);
+  if (existsSync(json) && statSync(json).mtimeMs >= since) {
     const m = JSON.parse(readFileSync(json, 'utf8'));
     if (m.format === FORMAT && m.file === basename(file)) return m;
   }
@@ -526,13 +605,17 @@ async function write(/** @type {string} */ file, /** @type {string} */ out, o = 
 
 /**
  * Every picture cut of a film against its music: each clip's start and end on a shown picture track, in frames from
- * the music's nearest beat. The music is the clip named by `music` (id or file), else the longest sound with no words
- * beside it (a .vtt is a voice).
+ * the music's nearest beat; edges less than half a frame apart are one cut. The music is the clip named by `music` (id
+ * or file), else the longest sound with no words beside it (a .vtt is a voice). With them: the stretches with no
+ * picture (`gaps`), clips over each other on a track (`overlaps`), clips trimmed past their file's end (`pastEnd`), the
+ * shots in each of the music's sections and their mean length (`pace`), runs of shots of one length (`warnings`), and
+ * what starts at the lift (`lift`).
  * @param {string} filmFile @param {{ music?: string, fps?: number, out?: string }} [o]
  */
 export async function check(filmFile, o = {}) {
   const dir = dirname(resolve(filmFile));
   const fps = o.fps ?? 30;
+  const half = 0.5 / fps;
   const tracks = filmTracks(readFileSync(filmFile, 'utf8')).filter((t) => !('hidden' in t.attrs));
   const sounds = tracks.flatMap((t) => t.clips.filter((c) => c.tag === 'audio').map(clipOf));
   const named = o.music && sounds.find((s) => s.id === o.music || s.file === o.music || basename(s.file) === o.music);
@@ -547,40 +630,174 @@ export async function check(filmFile, o = {}) {
   if (!music) throw new Error(`no music in ${filmFile}: a sound clip with no .vtt beside it, or --music <clip id>`);
   const m = await measured(join(dir, music.file), o.out ?? join(dir, 'beats'));
 
-  /** @type {{ t: number, clip: string, edge: 'start' | 'end' }[]} */
-  const edges = [];
+  /** @type {{ id: string, track: number, at: number, end: number | undefined }[]} */
+  const pictures = [];
+  /** @type {{ clip: string, end: number, length: number }[]} */
+  const pastEnd = [];
   let filmEnd = 0, unknown = 0;
-  for (const t of tracks) {
+  for (const [i, t] of tracks.entries()) {
     for (const raw of t.clips) {
       const c = clipOf(raw);
       const length = await lengthOf(c, dir);
       if (length != null) filmEnd = Math.max(filmEnd, c.at + length);
+      const full = join(dir, c.file);
+      if ((c.tag === 'video' || c.tag === 'audio') && existsSync(full)) {
+        const file = await mediaLength(full);
+        const end = Math.max(c.from, c.to ?? 0);
+        if (file != null && end > file + 5e-4) pastEnd.push({ clip: c.id, end, length: round(file) });
+      }
       if (c.tag === 'audio') continue;
-      edges.push({ t: c.at, clip: c.id, edge: 'start' });
       if (length == null) unknown++;
-      else edges.push({ t: c.at + length, clip: c.id, edge: 'end' });
+      pictures.push({ id: c.id, track: i, at: c.at, end: length == null ? undefined : c.at + length });
     }
   }
-  /** @type {Map<number, { t: number, clips: string[] }>} */
-  const cuts = new Map();
+  /* a picture of no known length shows until the next clip on its track */
+  const shownTo = (/** @type {(typeof pictures)[number]} */ p) => p.end ?? pictures.filter((q) => q.track === p.track && q.at > p.at + half).reduce((z, q) => Math.min(z, q.at), filmEnd);
+
+  /* edges less than half a frame apart are one cut, at the start of what comes in */
+  const edges = pictures.flatMap((p) => [{ t: p.at, clip: p.id, edge: 'start' }, ...(p.end != null ? [{ t: p.end, clip: p.id, edge: 'end' }] : [])]).sort((a, b) => a.t - b.t);
+  /** @type {{ last: number, edges: typeof edges }[]} */
+  const groups = [];
   for (const e of edges) {
-    if (e.t <= 1e-3 || e.t >= filmEnd - 1e-3) continue;
-    const key = Math.round(e.t * 1000);
-    const cut = cuts.get(key) ?? { t: key / 1000, clips: [] };
-    cut.clips.push(`${e.clip} ${e.edge}s`);
-    cuts.set(key, cut);
+    const g = groups.at(-1);
+    if (g && e.t - g.last < half) { g.edges.push(e); g.last = e.t; } else groups.push({ last: e.t, edges: [e] });
   }
-  const rows = [...cuts.values()].sort((a, b) => a.t - b.t).flatMap((cut) => {
-    if (cut.t < music.at - 1e-3 || cut.t > music.at + music.length + 1e-3) return [];
-    const inMusic = music.from + (cut.t - music.at) * music.speed;
-    const beat = snap(m, inMusic, 'beat'), bar = snap(m, inMusic, 'bar');
-    const frames = Math.round(((beat.at - inMusic) / music.speed) * fps * 10) / 10;
-    return [{ t: cut.t, music: round(inMusic), beat: beat.at, bar: Math.abs(bar.off) < 1e-3 + Math.abs(beat.off), frames, clips: cut.clips }];
+  const marks = groups.map((g) => {
+    const starts = g.edges.filter((e) => e.edge === 'start');
+    return { t: round((starts[0] ?? g.edges[0]).t), clips: g.edges.map((e) => `${e.clip} ${e.edge}s`), starts: starts.map((e) => e.clip) };
   });
-  return { music: { id: music.id, file: music.file, bpm: m.bpm, steady: m.steady }, fps, cuts: rows, unknown, onBeat: rows.filter((r) => Math.abs(r.frames) <= 1).length };
+  const toMusic = (/** @type {number} */ t) => music.from + (t - music.at) * music.speed;
+  const inMusic = (/** @type {number} */ t) => t >= music.at - 1e-3 && t <= music.at + music.length + 1e-3;
+  const rows = marks.filter((c) => c.t > half && c.t < filmEnd - half && inMusic(c.t)).map((cut) => {
+    const at = toMusic(cut.t);
+    const beat = snap(m, at, 'beat'), bar = snap(m, at, 'bar');
+    const frames = Math.round(((beat.at - at) / music.speed) * fps * 10) / 10;
+    return { t: cut.t, music: round(at), beat: beat.at, bar: Math.abs(bar.off) < 1e-3 + Math.abs(beat.off), frames, clips: cut.clips };
+  });
+
+  /* no picture: a stretch none covers that a frame falls in, or half a frame long */
+  const spans = pictures.map((p) => ({ id: p.id, track: p.track, a: p.at, z: shownTo(p) })).sort((x, y) => x.a - y.a);
+  const frameIn = (/** @type {number} */ a, /** @type {number} */ z) => Math.ceil(a * fps - 1e-6) / fps < z - 1e-6;
+  /** @type {{ start: number, end: number, length: number, after: string | null, before: string | null }[]} */
+  const gaps = [];
+  let cursor = 0, lastId = /** @type {string | null} */ (null);
+  const hole = (/** @type {number} */ z, /** @type {string | null} */ before) => {
+    if (z - cursor > 1e-6 && (z - cursor >= half || frameIn(cursor, z))) gaps.push({ start: round(cursor), end: round(z), length: round(z - cursor), after: lastId, before });
+  };
+  for (const s of spans) {
+    hole(s.a, s.id);
+    if (s.z > cursor) { cursor = s.z; lastId = s.id; }
+  }
+  if (spans.length) hole(filmEnd, null);
+
+  /** @type {{ track: number, a: string, b: string, length: number }[]} */
+  const overlaps = [];
+  for (const [i] of tracks.entries()) {
+    const on = spans.filter((s) => s.track === i).sort((x, y) => x.a - y.a);
+    let reach = -Infinity, by = '';
+    for (const s of on) {
+      if (reach - s.a >= half) overlaps.push({ track: i + 1, a: by, b: s.id, length: round(Math.min(reach, s.z) - s.a) });
+      if (s.z > reach) { reach = s.z; by = s.id; }
+    }
+  }
+
+  /* the shots as the viewer sees them: between one cut and the next, the top picture showing */
+  const bounds = [...new Set(marks.map((c) => c.t).concat(round(filmEnd)))].sort((a, b) => a - b);
+  const showing = (/** @type {number} */ t) => {
+    for (let i = 0; i < tracks.length; i++) {
+      const s = spans.find((x) => x.track === i && t >= x.a && t < x.z);
+      if (s) return s.id;
+    }
+    return null;
+  };
+  const shots = bounds.slice(0, -1).flatMap((a, k) => {
+    const z = bounds[k + 1], clip = showing((a + z) / 2);
+    return clip && z - a >= half ? [{ at: a, length: round(z - a), clip }] : [];
+  });
+  const sectionAt = (/** @type {number} */ t) => m.sections.findIndex((s) => t >= s.start - 1e-3 && t < s.end - 1e-3);
+  /** @type {{ level: string, start: number, end: number, film: { start: number, end: number }, shots: number, mean: number }[]} */
+  const pace = [];
+  /** @type {Map<number, (typeof pace)[number]>} */
+  const bySection = new Map();
+  for (const s of shots) {
+    if (!inMusic(s.at) || s.at > music.at + music.length - half) continue;
+    const k = sectionAt(toMusic(s.at));
+    if (k < 0) continue;
+    const sec = m.sections[k];
+    let row = bySection.get(k);
+    if (!row) {
+      const film = (/** @type {number} */ x) => round(Math.min(music.at + music.length, Math.max(music.at, music.at + (x - music.from) / music.speed)));
+      const used = music.from + music.length * music.speed;
+      pace.push((row = { level: sec.level, start: round(Math.max(sec.start, music.from)), end: round(Math.min(sec.end, used)), film: { start: film(sec.start), end: film(sec.end) }, shots: 0, mean: 0 }));
+      bySection.set(k, row);
+    }
+    row.mean = (row.mean * row.shots + s.length) / (row.shots + 1);
+    row.shots++;
+  }
+  for (const p of pace) p.mean = Math.round(p.mean * 100) / 100;
+
+  /* four shots or more of one length, give or take a frame, and longer than a burst of two bars: cut by the clock? */
+  const burst = (2 * m.meter * 60) / m.bpm;
+  /** @type {{ shots: number, length: number, from: string, at: number }[]} */
+  const warnings = [];
+  for (let a = 0; a < shots.length;) {
+    let z = a + 1;
+    while (z < shots.length && Math.abs(shots[z].length - shots[a].length) <= 1 / fps + 1e-6) z++;
+    if (z - a >= 4 && shots.slice(a, z).reduce((s, x) => s + x.length, 0) > burst + half) warnings.push({ shots: z - a, length: Math.round((shots.slice(a, z).reduce((s, x) => s + x.length, 0) / (z - a)) * 100) / 100, from: shots[a].clip, at: shots[a].at });
+    a = z;
+  }
+
+  /* what starts at the lift */
+  let lift = null;
+  if (m.lift != null) {
+    const film = round(music.at + (m.lift - music.from) / music.speed);
+    if (!inMusic(film)) lift = { music: m.lift, film, inFilm: false, cut: null };
+    else {
+      const near = marks.reduce((/** @type {(typeof marks)[number] | null} */ b, c) => (!b || Math.abs(c.t - film) < Math.abs(b.t - film) ? c : b), null);
+      const frames = near ? Math.round((near.t - film) * fps * 10) / 10 : null;
+      lift = { music: m.lift, film, inFilm: true, cut: near ? { t: near.t, frames, starts: near.starts, on: Math.abs(/** @type {number} */ (frames)) <= 1 } : null };
+    }
+  }
+  return {
+    music: { id: music.id, file: music.file, bpm: m.bpm, steady: m.steady },
+    fps,
+    cuts: rows,
+    unknown,
+    onBeat: rows.filter((r) => Math.abs(r.frames) <= 1).length,
+    gaps,
+    overlaps,
+    pastEnd,
+    pace,
+    warnings,
+    lift,
+  };
 }
 
 /* ---------- command line ---------- */
+
+/**
+ * Music is often felt at half or double its tempo: that reading, when the measure scores it close (within 4% of ×2 or
+ * ×½), or when the tempo is under 80 or over 160. Other ratios (a 2/3 peak) are not named.
+ * @param {{ bpm: number, tempos: { bpm: number, score: number }[] }} m
+ */
+export function otherTempo(m) {
+  if (m.bpm < 80) return Math.round(m.bpm * 20) / 10;
+  if (m.bpm > 160) return Math.round(m.bpm * 5) / 10;
+  const top = m.tempos[0]?.score ?? 0;
+  return m.tempos.find((t) => t.score >= 0.8 * top && [2, 0.5].some((r) => Math.abs(t.bpm / (m.bpm * r) - 1) <= 0.04))?.bpm;
+}
+
+/**
+ * What to do when the bars are a guess: set them from the beat where the music lifts (found beat by beat, so it is
+ * evidence the bars are not; `lift` is one of the guessed bars and proves nothing) when the music has a lift at all,
+ * else ask the person to listen.
+ * @param {{ barSure: number, lift: number | null, liftBeat?: number | null }} m @param {string} page
+ */
+export function barAdvice(m, page) {
+  if (m.barSure >= 0.1) return null;
+  if (m.lift != null && m.liftBeat != null) return `the first beat of each bar is a guess (sure ${m.barSure}). The music lifts on the beat at ${m.liftBeat} s (found beat by beat, not from these bars), and a lift nearly always starts a bar: run again with --bar ${m.liftBeat}`;
+  return `the first beat of each bar is a guess (sure ${m.barSure}): ask the person to listen at ${page} and say a second that starts a bar, then run again with --bar <that second>`;
+}
 
 async function main(/** @type {string[]} */ argv) {
   const flags = new Map();
@@ -609,8 +826,23 @@ async function main(/** @type {string[]} */ argv) {
         console.log(`  ${mark} film ${c.t.toFixed(3)} s  music ${c.music.toFixed(3)} s  nearest beat ${c.beat.toFixed(3)} s  ${c.frames > 0 ? '+' : ''}${c.frames} frames  ${c.clips.join(', ')}`);
       }
       if (r.unknown) console.log(`  ${r.unknown} clip end(s) not checked: a picture or a page with no #t= length`);
+      for (const g of r.gaps) console.log(`  GAP ${g.length.toFixed(3)} s with no picture ${g.after ? `after ${g.after}` : `before ${g.before}`} (film ${g.start.toFixed(3)}–${g.end.toFixed(3)} s${g.before ? '' : ', to the film\'s end'})`);
+      for (const v of r.overlaps) console.log(`  OVERLAP ${v.length.toFixed(3)} s on track ${v.track}: ${v.b} starts before ${v.a} ends`);
+      for (const p of r.pastEnd) console.log(`  PAST END ${p.clip}: #t= reaches ${p.end} s, the file is ${p.length} s long`);
+      if (r.pace.length) {
+        console.log('pace, shots by the music\'s sections:');
+        for (const p of r.pace) console.log(`  ${p.level.padEnd(5)} music ${p.start.toFixed(1)}–${p.end.toFixed(1)} s (film ${p.film.start.toFixed(1)}–${p.film.end.toFixed(1)}): ${p.shots} shot${p.shots === 1 ? '' : 's'}, mean ${p.mean.toFixed(2)} s`);
+      }
+      for (const w of r.warnings) console.log(`  WARN ${w.shots} shots in a row of ${w.length.toFixed(2)} s (from ${w.from} at ${w.at.toFixed(3)} s): cut by the clock?`);
+      if (r.lift) {
+        const head = `lift ${r.lift.music} s → film ${r.lift.film} s`;
+        const c = r.lift.cut;
+        if (!r.lift.inFilm) console.log(`${head}: outside the stretch of music the film uses`);
+        else if (c?.on) console.log(`${head}: ${c.starts.length ? `${c.starts.join(', ')} start${c.starts.length === 1 ? 's' : ''}` : 'a cut, but nothing starts there'}`);
+        else console.log(`${head}: no cut at the lift${c ? ` (nearest cut ${c.t} s, ${c.frames > 0 ? '+' : ''}${c.frames} frames${c.starts.length ? `: ${c.starts.join(', ')}` : ''})` : ''}`);
+      }
     }
-    return flags.has('--strict') && r.onBeat < r.cuts.length ? 1 : 0;
+    return flags.has('--strict') && (r.onBeat < r.cuts.length || r.gaps.length || r.pastEnd.length) ? 1 : 0;
   }
   const file = rest[0];
   if (!existsSync(file)) throw new Error(`no file ${file}`);
@@ -620,11 +852,11 @@ async function main(/** @type {string[]} */ argv) {
   const name = basename(file, extname(file));
   console.log(`${m.file}: ${m.bpm} BPM, ${m.meter} a bar, ${m.beats.length} beats from ${m.beats[0] ?? '-'} s, ${m.bars.length} bars, ${m.hits.length} hits, steady ${m.steady}${m.lift != null ? `, lifts at ${m.lift} s` : ''}`);
   if (m.steady < 0.25) console.log('  little steady beat: cut on the hits and the phrases instead');
-  /* music felt at half or double its tempo is common: say the other reading */
-  const near = m.tempos.find((t) => t.score >= 0.8 * m.tempos[0].score && Math.abs(t.bpm / m.bpm - 1) > 0.05)?.bpm;
-  const other = o.bpm ? undefined : m.bpm < 80 ? Math.round(m.bpm * 20) / 10 : m.bpm > 160 ? Math.round(m.bpm * 5) / 10 : near;
+  console.log(`  sections: ${sectionLine(m)}`);
+  const other = o.bpm ? undefined : otherTempo(m);
   if (other) console.log(`  it may also be ${other} BPM: if the beats feel wrong, run again with --bpm ${other}`);
-  if (m.barSure < 0.1) console.log(`  the first beat of each bar is a guess (sure ${m.barSure}): look at ${name}.html, or give --bar <a second that starts a bar>`);
+  const advice = barAdvice(m, join(out, `${name}.html`));
+  if (advice) console.log(`  ${advice}`);
   console.log(`  ${join(out, `${name}.json`)}, ${join(out, `${name}.html`)}`);
   return 0;
 }

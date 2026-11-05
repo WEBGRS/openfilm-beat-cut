@@ -16,8 +16,11 @@ export function grid({ bpm, end = bpm, seconds, start = 0, jitter = 0, seed = 1 
   return beats;
 }
 
-/** A mono 16-bit WAV of those beats, a kick every `meter` beats from the first, written to `file`. */
-export function wav(file, beats, { seconds, meter = 4, pad = true } = {}) {
+/**
+ * A mono 16-bit WAV of those beats, a kick every `meter` beats from the first, written to `file`; `gain(t)` scales the
+ * sound at second t (1 throughout unless given).
+ */
+export function wav(file, beats, { seconds, meter = 4, pad = true, gain = null } = {}) {
   const n = Math.round(seconds * RATE);
   const x = new Float32Array(n);
   let s = 7;
@@ -41,6 +44,7 @@ export function wav(file, beats, { seconds, meter = 4, pad = true } = {}) {
       for (let i = a; i < z && i < n; i++) for (const f of notes) x[i] += 0.03 * Math.sin((2 * Math.PI * f * (i - a)) / RATE);
     }
   }
+  if (gain) for (let i = 0; i < n; i++) x[i] *= gain(i / RATE);
   const data = Buffer.alloc(44 + n * 2);
   data.write('RIFF', 0); data.writeUInt32LE(36 + n * 2, 4); data.write('WAVE', 8);
   data.write('fmt ', 12); data.writeUInt32LE(16, 16); data.writeUInt16LE(1, 20); data.writeUInt16LE(1, 22);

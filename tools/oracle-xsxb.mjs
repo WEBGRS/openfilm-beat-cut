@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Score beats.mjs against XSXB-Band renders, whose score gives the true grid (beat 0 at 0 s).
-//   node tools/oracle-xsxb.mjs [exports dir]
+//   node tools/oracle-xsxb.mjs <exports dir>
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { measure } from '../skills/beat-cut/scripts/beats.mjs';
 
-const root = process.argv[2] ?? 'C:/Users/ghs/XSXB-Band/exports';
+const root = process.argv[2];
+if (!root) { console.error('usage: node tools/oracle-xsxb.mjs <XSXB-Band exports folder>'); process.exit(2); }
 const TOL = 0.07;
 
 /** Share of `got` within TOL of `want`, and of `want` found: F-measure. */

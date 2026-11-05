@@ -78,7 +78,7 @@ It needs Node 22 or later and ffmpeg on the PATH (OpenFilm needs ffmpeg too). It
 ```sh
 npm test            # synthetic music with a known grid and a lift, film.html parsing, check (about 15 s)
 npm run check       # the skill folder against OpenFilm's skill rules
-node tools/oracle-xsxb.mjs [XSXB-Band exports folder]                 # a local folder of renders, not in this repository
+node tools/oracle-xsxb.mjs <XSXB-Band exports folder>                 # a local folder of renders, not in this repository
 node tools/oracle-tempo.mjs <music folder> <incompetech pieces.json>   # local downloads too
 node tools/drift.mjs
 ```

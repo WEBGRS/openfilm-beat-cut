@@ -1,10 +1,17 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "repository": "https://github.com/WEBGRS/openfilm-beat-cut/tree/main/skills/beat-cut",
   "kind": "workflow",
   "order": 25,
   "icon": "music",
   "cover": "cover.jpg",
+  "needs": {
+    "en": "FFmpeg on your PATH (ffmpeg and ffprobe) and Node 22 or later: the agent runs them to measure the music and check the cuts. A transcription service only for footage with speech.",
+    "zh-CN": "PATH 里的 FFmpeg（ffmpeg 和 ffprobe）和 Node 22 或更新版本：智能体用它们测音乐、查剪辑点。只有素材里有人说话时才需要语音转写服务。",
+    "ja": "PATH 上の FFmpeg（ffmpeg と ffprobe）と Node 22 以降。エージェントが音楽の測定とカットの確認に実行します。文字起こしサービスは話し声のある素材にだけ必要です。",
+    "ko": "PATH에 있는 FFmpeg(ffmpeg, ffprobe)와 Node 22 이상. 에이전트가 음악을 측정하고 컷을 확인할 때 실행합니다. 음성 인식 서비스는 말소리가 있는 영상에만 필요합니다.",
+    "es": "FFmpeg en el PATH (ffmpeg y ffprobe) y Node 22 o posterior: el agente los ejecuta para medir la música y comprobar los cortes. Un servicio de transcripción solo para material con voz."
+  },
   "title": {
     "en": "Cut on the beat",
     "zh-CN": "音乐卡点",

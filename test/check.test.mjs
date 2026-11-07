@@ -54,6 +54,8 @@ test('the other tempo: only half or double, scored close, or under 80 / over 160
 
 test('bars that are a guess: --bar from the beat where the music lifts, else the person listens', () => {
   assert.equal(barAdvice({ barSure: 0.5, lift: 10, liftBeat: 10 }, 'beats/a.html'), null);
+  assert.equal(barAdvice({ barSure: 0.05, barBy: 'told', lift: 10, liftBeat: 10 }, 'beats/a.html'), null);
+  assert.match(barAdvice({ barSure: 0.05, barBy: 'lift', lift: 10, liftBeat: 10.5 }, 'beats/a.html'), /start from the beat where the music lifts, 10\.5 s/);
   assert.match(barAdvice({ barSure: 0.05, lift: 116.485, liftBeat: 116.485 }, 'beats/a.html'), /--bar 116\.485/);
   assert.match(barAdvice({ barSure: 0.05, lift: null, liftBeat: null }, 'beats/a.html'), /ask the person to listen at beats\/a\.html/);
   /* a rise beat by beat with no lift in the bars is not enough */
@@ -101,7 +103,7 @@ test('check: edges under half a frame apart are one cut; GAP, OVERLAP and PAST E
 
   const strict = spawnSync(process.execPath, [SCRIPT, 'check', 'messy.html', '--strict'], { cwd: dir, encoding: 'utf8' });
   assert.equal(strict.status, 1, strict.stdout + strict.stderr);
-  assert.match(strict.stdout, /7 cuts over it, 7 on a beat/);
+  assert.match(strict.stdout, /7 cuts over it, within a frame at 30 fps: 7 on a beat, 0 on a half beat, 0 on a hit, 0 off/);
   assert.match(strict.stdout, /GAP 2\.000 s with no picture after c\.png/);
   assert.match(strict.stdout, /OVERLAP 0\.500 s on track 1: e\.png starts before d\.png ends/);
   assert.match(strict.stdout, /PAST END v\.mp4: #t= reaches 2\.5 s, the file is 2 s long/);
@@ -137,4 +139,112 @@ test('check: the pace by section, shots cut by the clock, and what starts at the
   assert.equal(own2.lift.cut.on, false);
   const told = spawnSync(process.execPath, [SCRIPT, 'check', 'own.html'], { cwd: dir, encoding: 'utf8' });
   assert.match(told.stdout, /lift 32\.2\d* s → film 3[12][.\d]* s: no cut at the lift \(nearest cut 34 s, \+60(\.\d)? frames/);
+});
+
+test('check: the film follows the music\'s quiet and loud in numbers; shots all one length do not, and --strict fails them', async () => {
+  const dir = join(scratch, 'shape');
+  mkdirSync(join(dir, 'assets'), { recursive: true });
+  lifting(join(dir, 'assets', 'song.wav'));
+  /* positive control: 1 to 3 s shots in the loud, 4 to 10 s in the quiet, a short burst after the lift */
+  const own = [[0, 2], [2, 1], [3, 1], [4, 2], [6, 2], [8, 1], [9, 1], [10, 2], [12, 2], [14, 2], [16, 8], [24, 8], [32, 1], [33, 1], [34, 1], [35, 1]];
+  cutFilm(dir, 'follows', own.map(([at, len], k) => img(`o${k}`, at, len)).join(''), 36);
+  /* the same music, every shot 2 s: the quiet part is as busy as the loud */
+  const even = Array.from({ length: 18 }, (_, k) => [k * 2, 2]).map(([at, len], k) => img(`e${k}`, at, len)).join('');
+  cutFilm(dir, 'even', even, 36);
+
+  const good = await check(join(dir, 'follows.html'));
+  assert.ok(good.shape.ratio >= 1.5, JSON.stringify(good.shape));
+  assert.ok(good.shape.r >= 0.3, JSON.stringify(good.shape));
+  assert.equal(good.shape.ok, true);
+  assert.ok(!good.todo.some((t) => /quiet parts|per bar/.test(t)), good.todo.join(' | '));
+
+  const bad = await check(join(dir, 'even.html'));
+  assert.ok(bad.shape.ratio <= 1.1, JSON.stringify(bad.shape));
+  assert.equal(bad.shape.ok, false);
+  assert.ok(bad.todo.some((t) => /quiet parts' shots are 1x as long/.test(t) || /quiet parts' shots are 1\.\d+x/.test(t)), bad.todo.join(' | '));
+  const out = spawnSync(process.execPath, [SCRIPT, 'check', 'even.html', '--strict'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(out.status, 1, out.stdout);
+  assert.match(out.stdout, /shape: shots in the quiet and mid parts average 2\.00 s, in the loud parts 2\.00 s \(1x; want 1\.5x or more\)/);
+  assert.match(out.stdout.trim().split('\n').slice(-6).join('\n'), /TO DO \(\d+\):[\s\S]*quiet parts' shots are 1x as long/);
+  const ok = spawnSync(process.execPath, [SCRIPT, 'check', 'follows.html', '--strict'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(ok.status, 0, ok.stdout);
+});
+
+test('check: a cut on a half beat or a hit is not off; one between them is, and the TO DO names it with its frames', async () => {
+  const dir = join(scratch, 'kinds');
+  mkdirSync(join(dir, 'assets'), { recursive: true });
+  wav(join(dir, 'assets', 'song.wav'), grid({ bpm: 120, seconds: 20, start: 0.25 }), { seconds: 20 });
+  /* beats at film 0, 0.5 …; cuts at 2 (beat), 3.25 (half beat), 5.1 (3 frames late) */
+  cutFilm(dir, 'kinds', img('a', 0, 2) + img('b', 2, 1.25) + img('c', 3.25, 1.85) + img('d', 5.1, 3), 8.1);
+  const r = await check(join(dir, 'kinds.html'));
+  assert.deepEqual(r.cuts.map((c) => c.kind), ['bar', 'half', 'off']);
+  assert.equal(r.onGrid, 2);
+  assert.ok(r.todo[0].startsWith('1 cut is off the beat, the half beat and the hits (film 5.10 s '), r.todo[0]);
+  const out = spawnSync(process.execPath, [SCRIPT, 'check', 'kinds.html', '--strict'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /half film 3\.250 s/);
+  assert.match(out.stdout, /OFF  film 5\.100 s/);
+  assert.match(out.stdout, /1 on a beat, 1 on a half beat, 0 on a hit, 1 off/);
+});
+
+test('check: black bars inside the picture of the render show up with the shot and side; a full picture does not', async () => {
+  const dir = join(scratch, 'barred');
+  mkdirSync(join(dir, 'assets'), { recursive: true });
+  wav(join(dir, 'assets', 'song.wav'), grid({ bpm: 120, seconds: 20, start: 0.25 }), { seconds: 20 });
+  cutFilm(dir, 'film', img('a', 0, 2) + img('b', 2, 2), 4);
+  const render = (name, vf) => {
+    const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=96x54:d=4:r=30', '-vf', vf, '-pix_fmt', 'yuv420p', join(dir, name)]);
+    assert.equal(r.status, 0, String(r.stderr));
+  };
+  /* a render older than film.html is not this film's */
+  render('old.mp4', 'null');
+  await new Promise((done) => setTimeout(done, 50));
+  cutFilm(dir, 'film', img('a', 0, 2) + img('b', 2, 2), 4);
+  const none = await check(join(dir, 'film.html'));
+  assert.equal(none.render, null);
+  assert.ok(none.todo.some((t) => /no render of this film yet/.test(t)));
+  /* the picture scaled into a black frame: 16 px bars each side of 96 */
+  render('film.mp4', 'scale=64:54,pad=96:54:16:0:black');
+  const r = await check(join(dir, 'film.html'));
+  assert.equal(r.render, 'film.mp4');
+  assert.deepEqual(r.barred.map((b) => [b.clip, b.side]), [['a.png', 'left and right'], ['b.png', 'left and right']]);
+  assert.ok(r.todo.some((t) => /black bars in the picture of 2 shots \(a\.png at film 1\.00 s, left and right; b\.png at film 3\.00 s/.test(t)), r.todo.join(' | '));
+  const strict = spawnSync(process.execPath, [SCRIPT, 'check', 'film.html', '--strict'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(strict.status, 1, strict.stdout);
+  /* positive control: the whole frame is picture */
+  render('film.mp4', 'null');
+  const full = await check(join(dir, 'film.html'));
+  assert.deepEqual(full.barred, []);
+  assert.ok(!full.todo.some((t) => /no render/.test(t)));
+});
+
+test('bars the kick and the harmony leave a guess start from the lift beat; --bar still wins', async () => {
+  /* a kick on every beat and a chord that changes every beat: nothing says which beat starts a bar; the level steps up at 21.25 s, beat 42 (42 % 4 = 2) */
+  const file = join(scratch, 'flat-lift.wav');
+  wav(file, grid({ bpm: 120, seconds: 40, start: 0.25 }), { seconds: 40, meter: 1, gain: (t) => (t < 21.25 ? 0.2 : 1) });
+  const m = await measure(file);
+  assert.ok(m.barSure < 0.2, `barSure ${m.barSure}`);
+  assert.equal(m.barBy, 'lift');
+  assert.ok(Math.abs(m.liftBeat - 21.25) < 0.03, `liftBeat ${m.liftBeat}`);
+  assert.ok(m.bars.some((b) => Math.abs(b - m.liftBeat) < 1e-3), 'the lift beat starts a bar');
+  assert.ok(Math.abs(m.lift - m.liftBeat) < 1e-3, `lift ${m.lift}`);
+  assert.equal(m.bars.length, Math.ceil((m.beats.length - (m.beats.indexOf(m.liftBeat) % 4)) / 4));
+  /* told: --bar wins over the lift */
+  const told = await measure(file, { bar: m.beats[0] });
+  assert.equal(told.barBy, 'told');
+});
+
+test('the lift is the second the level steps up: on a half beat it is not moved to a beat, and no bar is set from it', async () => {
+  const file = join(scratch, 'half-lift.wav');
+  /* 120 BPM from 0.25 s; the level steps up 16 dB at 32.5 s, between the beats at 32.25 and 32.75, with a loud hit there */
+  wav(file, grid({ bpm: 120, seconds: 44.5, start: 0.25 }), { seconds: 44.5, gain: (t) => (t < 32.5 ? 0.16 : 1), offbeat: (t) => (t >= 32.49 && t < 32.51 ? 1.2 : 0) });
+  const m = await measure(file);
+  assert.ok(Math.abs(m.lift - 32.5) <= 0.02, `lift ${m.lift}`);
+  assert.equal(m.liftBeat, null);
+  assert.notEqual(m.barBy, 'lift');
+  /* the bars start a half beat off the lift, but the quiet ends and the loud starts at the lift itself */
+  const quiet = m.sections.find((x) => x.level !== 'loud');
+  const loud = m.sections.find((x) => x.level === 'loud');
+  assert.ok(Math.abs(quiet.end - m.lift) < 1e-3 && Math.abs(loud.start - m.lift) < 1e-3, JSON.stringify(m.sections));
+  assert.match(sectionLine(m), /, then the lift/);
 });

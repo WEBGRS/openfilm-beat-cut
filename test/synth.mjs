@@ -20,7 +20,7 @@ export function grid({ bpm, end = bpm, seconds, start = 0, jitter = 0, seed = 1 
  * A mono 16-bit WAV of those beats, a kick every `meter` beats from the first, written to `file`; `gain(t)` scales the
  * sound at second t (1 throughout unless given).
  */
-export function wav(file, beats, { seconds, meter = 4, pad = true, gain = null } = {}) {
+export function wav(file, beats, { seconds, meter = 4, pad = true, gain = null, offbeat = null } = {}) {
   const n = Math.round(seconds * RATE);
   const x = new Float32Array(n);
   let s = 7;
@@ -35,6 +35,15 @@ export function wav(file, beats, { seconds, meter = 4, pad = true, gain = null }
         : 0.3 * noise() * Math.exp(-t * 40);
     }
   });
+  /* a bright burst halfway between beats, as loud as `offbeat(t)` says (none where it is 0): the strongest attack of a loud part */
+  if (offbeat) {
+    beats.forEach((b, k) => {
+      const t0 = k + 1 < beats.length ? (b + beats[k + 1]) / 2 : b + 0.25;
+      const level = offbeat(t0);
+      const at = Math.round(t0 * RATE);
+      for (let i = 0; level > 0 && i < RATE * 0.12 && at + i < n; i++) x[at + i] += level * noise() * Math.exp(-(i / RATE) * 45);
+    });
+  }
   /* a chord held under it, changing every bar */
   if (pad) {
     const chords = [[220, 277, 330], [196, 247, 294], [175, 220, 262], [165, 208, 247]];

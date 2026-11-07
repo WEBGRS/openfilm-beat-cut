@@ -1,16 +1,16 @@
 {
-  "version": "0.1.1",
+  "version": "0.2.0",
   "repository": "https://github.com/WEBGRS/openfilm-beat-cut/tree/main/skills/beat-cut",
   "kind": "workflow",
   "order": 25,
   "icon": "music",
   "cover": "cover.jpg",
   "needs": {
-    "en": "FFmpeg on your PATH (ffmpeg and ffprobe) and Node 22 or later: the agent runs them to measure the music and check the cuts. A transcription service only for footage with speech.",
-    "zh-CN": "PATH 里的 FFmpeg（ffmpeg 和 ffprobe）和 Node 22 或更新版本：智能体用它们测音乐、查剪辑点。只有素材里有人说话时才需要语音转写服务。",
-    "ja": "PATH 上の FFmpeg（ffmpeg と ffprobe）と Node 22 以降。エージェントが音楽の測定とカットの確認に実行します。文字起こしサービスは話し声のある素材にだけ必要です。",
-    "ko": "PATH에 있는 FFmpeg(ffmpeg, ffprobe)와 Node 22 이상. 에이전트가 음악을 측정하고 컷을 확인할 때 실행합니다. 음성 인식 서비스는 말소리가 있는 영상에만 필요합니다.",
-    "es": "FFmpeg en el PATH (ffmpeg y ffprobe) y Node 22 o posterior: el agente los ejecuta para medir la música y comprobar los cortes. Un servicio de transcripción solo para material con voz."
+    "en": "OpenFilm 0.3 or later, FFmpeg on your PATH (ffmpeg and ffprobe) and Node 22 or later: the agent runs them to measure the music and check the cuts. A transcription service only for footage with speech.",
+    "zh-CN": "OpenFilm 0.3 或更新版本、PATH 里的 FFmpeg（ffmpeg 和 ffprobe）和 Node 22 或更新版本：智能体用它们测音乐、查剪辑点。只有素材里有人说话时才需要语音转写服务。",
+    "ja": "OpenFilm 0.3 以降、PATH 上の FFmpeg（ffmpeg と ffprobe）、Node 22 以降。エージェントが音楽の測定とカットの確認に実行します。文字起こしサービスは話し声のある素材にだけ必要です。",
+    "ko": "OpenFilm 0.3 이상, PATH에 있는 FFmpeg(ffmpeg, ffprobe), Node 22 이상. 에이전트가 음악을 측정하고 컷을 확인할 때 실행합니다. 음성 인식 서비스는 말소리가 있는 영상에만 필요합니다.",
+    "es": "OpenFilm 0.3 o posterior, FFmpeg en el PATH (ffmpeg y ffprobe) y Node 22 o posterior: el agente los ejecuta para medir la música y comprobar los cortes. Un servicio de transcripción solo para material con voz."
   },
   "title": {
     "en": "Cut on the beat",
@@ -27,10 +27,10 @@
     "es": "Una película montada a su música: cada cambio en un tiempo, los cambios de escena al inicio del compás, el mejor plano donde la música sube."
   },
   "details": {
-    "en": "Best for: montages, travel and event highlights, product cuts to a track, photo slideshows to music.\nWhat it does: measures the music first (tempo, beats, bars, the hits that stand out, quiet and loud parts, where it lifts), cuts your shots on those marks with the pace following the music, and checks every cut in frames against the nearest beat before handing it over.",
-    "zh-CN": "适合：混剪、旅行和活动集锦、配乐产品片、照片卡点。\n它会：先测音乐（速度、每一拍、每小节第一拍、突出的重音、安静和热闹的段落、音乐起来的位置），再把你的镜头剪在这些点上，节奏跟着音乐走；交付前逐个检查每个剪辑点离最近的拍子差几帧。",
-    "ja": "こんなときに：モンタージュ、旅行やイベントのハイライト、曲に合わせた商品動画、写真のスライドショー。\nすること：まず音楽を測り（テンポ、拍、小節の頭、目立つアクセント、静かな部分と盛り上がる部分、曲が上がる位置）、そこにショットを合わせて切り、テンポは曲に従います。渡す前に、すべてのカットが最寄りの拍から何フレームずれているかを確認します。",
-    "ko": "이럴 때: 몽타주, 여행·행사 하이라이트, 음악에 맞춘 제품 영상, 사진 슬라이드쇼.\n하는 일: 먼저 음악을 측정하고(템포, 박, 마디 첫 박, 두드러진 악센트, 조용한 부분과 큰 부분, 음악이 올라가는 위치), 그 지점에 장면을 맞춰 자르며 속도는 음악을 따릅니다. 넘기기 전에 모든 컷이 가장 가까운 박에서 몇 프레임 떨어져 있는지 확인합니다.",
-    "es": "Ideal para: montajes, resúmenes de viajes y eventos, vídeos de producto con música, presentaciones de fotos con música.\nQué hace: primero mide la música (tempo, tiempos, inicio de cada compás, los golpes que destacan, partes suaves y fuertes, dónde sube), corta tus planos en esas marcas siguiendo el ritmo de la música, y antes de entregar comprueba en fotogramas cada corte frente al tiempo más cercano."
+    "en": "Best for: montages, travel and event highlights, product cuts to a track, photo slideshows to music.\nWhat it does: measures the music first (tempo, a straight line of beats, bars, the hits that stand out, quiet and loud parts, where it lifts), cuts your shots on those marks, and checks the film before handing it over: every cut in frames against the nearest beat, half beat or hit, shots longer in the quiet parts than in the loud, the lift, where the film starts and ends in the music, and black bars in the picture.",
+    "zh-CN": "适合：混剪、旅行和活动集锦、配乐产品片、照片卡点。\n它会：先测音乐（速度、一条笔直的拍点线、小节、突出的重音、安静和热闹的段落、音乐起来的位置），再把你的镜头剪在这些点上；交付前检查成片：每个剪辑点离最近的拍点、半拍或重音差几帧，安静段的镜头是否比热闹段更长，高潮点，成片从音乐的哪里开始、哪里结束，以及画面里的黑边。",
+    "ja": "こんなときに：モンタージュ、旅行やイベントのハイライト、曲に合わせた商品動画、写真のスライドショー。\nすること：まず音楽を測り（テンポ、一直線の拍、小節の頭、目立つアクセント、静かな部分と盛り上がる部分、曲が上がる位置）、そこにショットを合わせて切ります。渡す前に作品を点検します：すべてのカットが最寄りの拍・半拍・アクセントから何フレームずれているか、静かな部分のショットが盛り上がる部分より長いか、盛り上がりの位置、曲のどこから始まりどこで終わるか、映像の中の黒い帯。",
+    "ko": "이럴 때: 몽타주, 여행·행사 하이라이트, 음악에 맞춘 제품 영상, 사진 슬라이드쇼.\n하는 일: 먼저 음악을 측정하고(템포, 일직선의 박, 마디 첫 박, 두드러진 악센트, 조용한 부분과 큰 부분, 음악이 올라가는 위치), 그 지점에 장면을 맞춰 자릅니다. 넘기기 전에 영상을 점검합니다: 모든 컷이 가장 가까운 박·반 박·악센트에서 몇 프레임 떨어져 있는지, 조용한 부분의 장면이 큰 부분보다 긴지, 음악이 올라가는 곳, 음악의 어디서 시작해 어디서 끝나는지, 화면 속 검은 띠.",
+    "es": "Ideal para: montajes, resúmenes de viajes y eventos, vídeos de producto con música, presentaciones de fotos con música.\nQué hace: primero mide la música (tempo, una línea recta de tiempos, compases, los golpes que destacan, partes suaves y fuertes, dónde sube), corta tus planos en esas marcas y, antes de entregar, revisa la película: cada corte en fotogramas frente al tiempo, medio tiempo o golpe más cercano, planos más largos en las partes suaves que en las fuertes, el momento en que sube, dónde empieza y termina en la música, y las franjas negras dentro de la imagen."
   }
 }

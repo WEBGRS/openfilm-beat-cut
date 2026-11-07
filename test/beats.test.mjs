@@ -22,6 +22,30 @@ test('a steady 128 BPM: its tempo, every beat, and the bars from the kick', asyn
   assert.ok(m.steady > 0.25, `steady ${m.steady}`);
   assert.ok(m.sound.start < 0.45 && m.sound.end > 29);
   for (const b of m.beats) assert.equal(b, Math.round(b * 1000) / 1000);
+  /* a constant tempo is a straight line of beats, each on its kick to within 5 ms */
+  assert.equal(m.grid.regular, true, JSON.stringify(m.grid));
+  assert.ok(Math.abs(m.grid.bpm - 128) < 0.05, `grid bpm ${m.grid.bpm}`);
+  const inside = m.beats.filter((b) => b > beats[0] - 0.05 && b < beats.at(-1) + 0.05);
+  const worst = Math.max(...inside.map((b) => Math.min(...beats.map((t) => Math.abs(t - b)))));
+  assert.ok(inside.length >= beats.length - 1 && worst <= 0.005, `worst beat ${worst * 1000} ms from its kick`);
+});
+
+test('a constant tempo whose strongest attack moves from the off beat to the kick: every beat on one line, none drifting', async () => {
+  /* loud parts have a bright burst between the beats, stronger than the kick; the quiet part (20 to 40 s, -22 dB) has the kicks only */
+  const truth = grid({ bpm: 120, seconds: 64, start: 0.25 });
+  const quiet = (t) => t >= 20 && t < 40;
+  const file = join(scratch, 'moving.wav');
+  wav(file, truth, { seconds: 64, gain: (t) => (quiet(t) ? 0.08 : 1), offbeat: (t) => (quiet(t) ? 0 : 1.2) });
+  const m = await measure(file);
+  /* on the beat or its half, either is a place to cut: each beat within half a frame of one of them */
+  const frames = m.beats.map((b) => { const k = (b - 0.25) / 0.25; return Math.abs(k - Math.round(k)) * 0.25 * 30; });
+  const worst = Math.max(...frames);
+  assert.ok(worst <= 0.5, `worst beat ${worst.toFixed(2)} frames from the beat or half-beat grid`);
+  /* one phase for the whole piece, not the off beat in the loud parts and the kick in the quiet */
+  const phase = m.beats.map((b) => { const k = (b - 0.25) / 0.5; return (k - Math.round(k)) * 0.5; });
+  assert.ok(Math.max(...phase) - Math.min(...phase) <= 0.01, `phases spread ${Math.max(...phase) - Math.min(...phase)}`);
+  assert.equal(m.grid.regular, true);
+  assert.ok(m.grid.moved > 0, `the tracker's own beats were off the line: ${JSON.stringify(m.grid)}`);
 });
 
 test('a tempo that drifts (128 to 136) and beats played loosely (12 ms) are followed', async () => {
@@ -30,6 +54,8 @@ test('a tempo that drifts (128 to 136) and beats played loosely (12 ms) are foll
   wav(file, beats, { seconds: 60 });
   const m = await measure(file);
   assert.ok(fmeasure(m.beats, beats) >= 0.95, `beats F ${fmeasure(m.beats, beats)}`);
+  /* a tempo that changes is not a straight line: the tracker's beats stand */
+  assert.equal(m.grid.regular, false, JSON.stringify(m.grid));
 });
 
 test('--bar sets which beat starts a bar; --bpm sets the tempo', async () => {

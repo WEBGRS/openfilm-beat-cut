@@ -1,15 +1,17 @@
 #!/usr/bin/env node
-// One measure for any film cut to a track: node evals/measure.mjs <film folder> --beats <beats.json> --period <s> --t0 <s>
-// <beats.json> is beats.mjs run once on the music. --period and --t0 are a constant-tempo grid made apart from it.
+// One measure for any film cut to a track: node evals/measure.mjs <film folder> --beats <beats.json> --period <s> --t0 <s> --lift <s>
+// <beats.json> is beats.mjs run once on the music (its sections). --period and --t0 are a constant-tempo grid made apart
+// from it, --lift the second evals/lift.mjs finds. The skill's own check is run on the film too, its numbers listed apart.
 // Node and ffmpeg only. Reads film.html and the newest MP4 outside assets/.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
 const arg = (k) => { const i = process.argv.indexOf(`--${k}`); return i < 0 ? undefined : process.argv[i + 1]; };
 const folder = process.argv[2];
 const bjs = JSON.parse(readFileSync(arg('beats'), 'utf8'));
-const period = +arg('period'), t0 = +arg('t0');
+const period = +arg('period'), t0 = +arg('t0'), liftAt = +arg('lift');
 const FPS = 30;
 
 // Find the film and its render
@@ -54,7 +56,6 @@ const toMusic = (t) => music.from + (t - music.at) * music.speed;
 const beats = [];
 for (let k = Math.ceil(-t0 / period); t0 + k * period < bjs.duration; k++) beats.push(t0 + k * period);
 const halves = beats.flatMap((t) => [t, t + period / 2]);
-const bjsHalves = bjs.beats.flatMap((t, i) => (i + 1 < bjs.beats.length ? [t, (t + bjs.beats[i + 1]) / 2] : [t]));
 const nearest = (arr, t) => arr.reduce((b, x) => (Math.abs(x - t) < Math.abs(b - t) ? x : b), arr[0]);
 const frames = (arr, t) => Math.abs(nearest(arr, t) - t) * FPS;
 
@@ -64,7 +65,6 @@ const filmEnd = edges.at(-1);
 const cuts = [];
 for (const e of edges) if (e > 0.5 / FPS && e < filmEnd - 0.5 / FPS && (!cuts.length || e - cuts.at(-1) >= 0.5 / FPS)) cuts.push(e);
 const onGrid = cuts.map((t) => frames(halves, toMusic(t)));
-const onTool = cuts.map((t) => frames(bjsHalves, toMusic(t)));
 const count = (a, n) => `${a.filter((x) => x <= n).length}/${a.length}`;
 const mean = (a) => +(a.reduce((s, x) => s + x, 0) / (a.length || 1)).toFixed(2);
 
@@ -81,7 +81,7 @@ for (const s of shots) {
 }
 
 // The lift
-const lift = bjs.liftBeat ?? bjs.lift;
+const lift = liftAt;
 const liftIn = lift != null && lift > music.from && lift < mEnd;
 const liftFilm = liftIn ? music.at + (lift - music.from) / music.speed : null;
 
@@ -97,6 +97,15 @@ const rms = (a, b) => { let s = 0; for (let i = a; i < b; i++) s += x[i] * x[i];
 const db = (v) => +(20 * Math.log10(v + 1e-9)).toFixed(1);
 const w = Math.round(0.3 * 22050);
 
+// The skill's own check on the film, listed apart from the rest: it is the measure the skill works against
+const saved = join(tmpdir(), `beat-cut-measure-${process.pid}`);
+const checked = spawnSync(process.execPath, [join(import.meta.dirname, '..', 'skills', 'beat-cut', 'scripts', 'beats.mjs'), 'check', filmFile, '--json', '--out', saved], { encoding: 'utf8', maxBuffer: 1 << 28 });
+let own = null;
+try {
+  const c = JSON.parse(checked.stdout);
+  own = { cuts: c.cuts.length, onTheGrid: c.onGrid, off: c.cuts.filter((k) => k.kind === 'off').length, shape: { ratio: c.shape.ratio, r: c.shape.r, ok: c.shape.ok }, shotsWithBlackBars: c.barred.length, todo: c.todo.length };
+} catch { own = { error: checked.stderr.trim().split(String.fromCharCode(10)).slice(-2).join(' ') }; }
+
 console.log(JSON.stringify({
   film: filmFile, render,
   length: +filmEnd.toFixed(2),
@@ -104,7 +113,6 @@ console.log(JSON.stringify({
   cuts: cuts.length,
   cutsSeenInRender: confirmed,
   within1Frame_grid: count(onGrid, 1), within2Frames_grid: count(onGrid, 2), meanFrames_grid: mean(onGrid), worstFrames_grid: +Math.max(...onGrid).toFixed(2),
-  within1Frame_beatsMjs: count(onTool, 1), within2Frames_beatsMjs: count(onTool, 2), meanFrames_beatsMjs: mean(onTool),
   chanceWithin1Frame: +((2 / FPS) / (period / 2)).toFixed(2),
   lift: { musicSecond: lift, inFilm: liftIn, filmSecond: liftFilm && +liftFilm.toFixed(2), framesToNearestCut: liftIn ? +(Math.abs(nearest(cuts, liftFilm) - liftFilm) * FPS).toFixed(1) : null,
     shot: liftIn ? pics.filter((p) => p.at <= liftFilm + 1 / FPS && p.at + p.length > liftFilm + 1 / FPS).map((p) => `${basename(p.file)}#${p.from}`) : null },
@@ -115,4 +123,5 @@ console.log(JSON.stringify({
   clipsWithSoundOn: pics.filter((p) => p.tag === 'video' && !p.muted && p.volume > 0).length,
   blackStretches: [...black.matchAll(/black_start:([\d.]+) black_end:([\d.]+)/g)].map((m) => [+m[1], +m[2]]),
   sound: { whole_dB: db(rms(0, x.length)), last03s_dB: db(rms(x.length - w, x.length)) },
+  checkOfTheSkill: own,
 }, null, 1));

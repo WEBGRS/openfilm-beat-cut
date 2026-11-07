@@ -103,7 +103,7 @@ const checked = spawnSync(process.execPath, [join(import.meta.dirname, '..', 'sk
 let own = null;
 try {
   const c = JSON.parse(checked.stdout);
-  own = { cuts: c.cuts.length, onTheGrid: c.onGrid, off: c.cuts.filter((k) => k.kind === 'off').length, shape: { ratio: c.shape.ratio, r: c.shape.r, ok: c.shape.ok }, shotsWithBlackBars: c.barred.length, todo: c.todo.length };
+  own = { cuts: c.cuts.length, onTheGrid: c.onGrid, off: c.cuts.filter((k) => k.kind === 'off').length, shape: { ratio: c.shape.ratio, r: c.shape.r, ok: c.shape.ok }, shotsWithBlackBars: c.barred.length, blackFramesInside: c.black.length, todo: c.todo.length };
 } catch { own = { error: checked.stderr.trim().split(String.fromCharCode(10)).slice(-2).join(' ') }; }
 
 console.log(JSON.stringify({

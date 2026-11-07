@@ -248,3 +248,34 @@ test('the lift is the second the level steps up: on a half beat it is not moved 
   assert.ok(Math.abs(quiet.end - m.lift) < 1e-3 && Math.abs(loud.start - m.lift) < 1e-3, JSON.stringify(m.sections));
   assert.match(sectionLine(m), /, then the lift/);
 });
+
+test('check: a black frame inside the render is the footage\'s where the file is black and the render\'s where the file has picture; a fade at the ends is not one', async () => {
+  const dir = join(scratch, 'blackframe');
+  mkdirSync(join(dir, 'assets'), { recursive: true });
+  wav(join(dir, 'assets', 'song.wav'), grid({ bpm: 120, seconds: 20, start: 0.25 }), { seconds: 20 });
+  const ff = (args) => { const r = spawnSync('ffmpeg', ['-v', 'error', '-y', ...args]); assert.equal(r.status, 0, String(r.stderr)); };
+  /* g.mp4 is picture; b.mp4 is black */
+  ff(['-f', 'lavfi', '-i', 'testsrc2=s=96x54:d=2:r=30', '-pix_fmt', 'yuv420p', join(dir, 'assets', 'g.mp4')]);
+  ff(['-f', 'lavfi', '-i', 'color=c=black:s=96x54:d=2:r=30', '-pix_fmt', 'yuv420p', join(dir, 'assets', 'b.mp4')]);
+  /* a: picture to 2 s, b: black 2 to 4 s, c: picture 4 to 6 s; cuts on the beats of the music */
+  writeFileSync(join(dir, 'film.html'), `<!doctype html><html><body>
+<section><video src="assets/g.mp4#t=0,2" at="0"></video><video src="assets/b.mp4#t=0,2" at="2"></video><video src="assets/g.mp4#t=0,2" at="4"></video></section>
+<section><audio src="assets/song.wav#t=0.25,6.25" at="0"></audio></section>
+</body></html>`);
+  /* the render: a black frame at 3.0 s (inside b) and one at 5.0 s (inside c), and a black first and last frame as a fade has */
+  const render = (name, vf) => ff(['-f', 'lavfi', '-i', 'testsrc2=s=96x54:d=6:r=30', '-vf', vf, '-pix_fmt', 'yuv420p', join(dir, name)]);
+  await new Promise((done) => setTimeout(done, 50));
+  render('film.mp4', "geq=lum='if(eq(N,90)+eq(N,150)+eq(N,0)+eq(N,179),0,lum(X,Y))':cb=128:cr=128");
+  const r = await check(join(dir, 'film.html'));
+  assert.deepEqual(r.black.map((b) => [b.at, b.clip, b.cause]), [[3, 'b.mp4', 'source'], [5, 'g.mp4', 'render']], JSON.stringify(r.black));
+  assert.ok(r.todo.some((t) => /black in the file itself where a clip plays \(b\.mp4 at film 3\.00 s\)/.test(t)), r.todo.join(' | '));
+  assert.ok(r.todo.some((t) => /1 black frame in the render where the file has picture \(g\.mp4 at film 5\.00 s\)/.test(t)), r.todo.join(' | '));
+  const strict = spawnSync(process.execPath, [SCRIPT, 'check', 'film.html', '--strict'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(strict.status, 1, strict.stdout);
+  assert.match(strict.stdout, /2 black frame\(s\) inside the film \(3\.00 s, 5\.00 s\)/);
+  /* positive control: only the ends are black */
+  render('film.mp4', "geq=lum='if(eq(N,0)+eq(N,179),0,lum(X,Y))':cb=128:cr=128");
+  const clean = await check(join(dir, 'film.html'));
+  assert.deepEqual(clean.black, []);
+  assert.ok(!clean.todo.some((t) => /black/.test(t)), clean.todo.join(' | '));
+});

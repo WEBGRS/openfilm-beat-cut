@@ -15,9 +15,10 @@
  *       their file's end (PAST END); the pace (shots and their mean length in each of the music's sections) and the
  *       shape (quiet parts' shots against loud parts', cuts a bar against each bar's level), where the film enters and
  *       leaves the music and how many bars it starts before the lift, runs of four or more shots of one length (WARN),
- *       what starts at the lift, and black bars in the picture of the render beside film.html, if there is one. It ends
+ *       what starts at the lift, and, of the render beside film.html if there is one, black bars in the picture and frames of
+ *       black inside the film (from the clip's file, or drawn black where the file has picture). It ends
  *       with TO DO, what is left to fix. --strict exits 1 on a cut off the beat, a GAP, a PAST END, a shape that does
- *       not follow the music or black bars
+ *       not follow the music, black bars or a black frame inside the film
  *
  * The measure, format "openfilm-beats/1", every time in the music file's own seconds:
  *   { format, file, duration, bpm, meter, barSure, barBy, steady, tempos: [{ bpm, score }], grid, beats, bars, hits: [{ t, strength, onBeat }],
@@ -783,7 +784,7 @@ export async function check(filmFile, o = {}) {
   if (!music) throw new Error(`no music in ${filmFile}: a sound clip with no .vtt beside it, or --music <clip id>`);
   const m = await measured(join(dir, music.file), o.out ?? join(dir, 'beats'));
 
-  /** @type {{ id: string, track: number, at: number, end: number | undefined }[]} */
+  /** @type {{ id: string, track: number, at: number, end: number | undefined, file: string, from: number, speed: number, tag: string }[]} */
   const pictures = [];
   /** @type {{ clip: string, end: number, length: number }[]} */
   const pastEnd = [];
@@ -801,7 +802,7 @@ export async function check(filmFile, o = {}) {
       }
       if (c.tag === 'audio') continue;
       if (length == null) unknown++;
-      pictures.push({ id: c.id, track: i, at: c.at, end: length == null ? undefined : c.at + length });
+      pictures.push({ id: c.id, track: i, at: c.at, end: length == null ? undefined : c.at + length, file: c.file, from: c.from, speed: c.speed, tag: c.tag });
     }
   }
   /* a picture of no known length shows until the next clip on its track */
@@ -947,6 +948,7 @@ export async function check(filmFile, o = {}) {
   /* the render of this film, if there is one: the picture's black bars, which look --full does not report */
   const render = renderOf(filmFile);
   const barred = render ? await bars(render, shots) : [];
+  const black = render ? await blackFrames(render, filmEnd, pictures, dir) : [];
 
   const off = rows.filter((c) => c.kind === 'off');
   /** @type {string[]} */
@@ -964,6 +966,9 @@ export async function check(filmFile, o = {}) {
   if (lift && !lift.inFilm) todo.push(`the lift (music ${lift.music} s) is not in the film: use the music from a phrase before it, unless the person asked for another part`);
   else if (lift?.cut && !lift.cut.on) todo.push(`no cut at the lift (film ${lift.film} s): put the strongest shot there`);
   if (barred.length) todo.push(`black bars in the picture of ${barred.length} shot${barred.length === 1 ? '' : 's'} (${barred.slice(0, 6).map((b) => `${b.clip} at film ${b.at.toFixed(2)} s, ${b.side}`).join('; ')}${barred.length > 6 ? '; …' : ''}): they are in the clip's own picture; scale or crop each clip with CSS until the frame is picture`);
+  const own = black.filter((b) => b.cause === 'source'), drawn = black.filter((b) => b.cause !== 'source');
+  if (own.length) todo.push(`black in the file itself where ${own.length === 1 ? 'a clip plays' : `${own.length} clips play`} (${own.map((b) => `${b.clip} at film ${b.at.toFixed(2)} s`).join('; ')}): start ${own.length === 1 ? 'it' : 'each'} at a moment of picture`);
+  if (drawn.length) todo.push(`${drawn.length} black frame${drawn.length === 1 ? '' : 's'} in the render where the file has picture (${drawn.slice(0, 6).map((b) => `${b.clip} at film ${b.at.toFixed(2)} s`).join('; ')}${drawn.length > 6 ? '; …' : ''}): not the footage's, though look --full may call it that; render again, and where it stays start that clip a few frames earlier or later`);
   if (!render) todo.push('no render of this film yet: render it, run `npx openfilm look --full`, look at the cuts that matter, then run check again for the picture');
   return {
     music: { id: music.id, file: music.file, bpm: m.bpm, steady: m.steady, grid: m.grid },
@@ -982,6 +987,7 @@ export async function check(filmFile, o = {}) {
     lift,
     render: render ? basename(render) : null,
     barred,
+    black,
     todo,
   };
 }
@@ -1012,6 +1018,40 @@ function renderOf(/** @type {string} */ filmFile) {
   const since = statSync(filmFile).mtimeMs;
   return readdirSync(dir).filter((f) => /\.mp4$/i.test(f)).map((f) => join(dir, f))
     .filter((f) => statSync(f).mtimeMs >= since).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0] ?? null;
+}
+
+/**
+ * Frames of pure black in the render that are neither the film's fade in nor its fade out (within half a second of
+ * either end): when the clip showing there is a video, whether its own file is black at that moment ('source') or has
+ * picture ('render': the frame was drawn black).
+ * @returns {Promise<{ at: number, until: number, clip: string, cause: string }[]>}
+ */
+async function blackFrames(/** @type {string} */ render, /** @type {number} */ filmEnd, /** @type {{ id: string, track: number, at: number, end: number | undefined, file: string, from: number, speed: number, tag: string }[]} */ pictures, /** @type {string} */ dir) {
+  const err = await new Promise((ok) => {
+    const p = spawn('ffmpeg', ['-hide_banner', '-i', render, '-an', '-vf', 'blackdetect=d=0.03:pix_th=0.05', '-f', 'null', '-'], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+    let text = '';
+    p.stderr.on('data', (b) => { text += b; });
+    p.on('error', () => ok(''));
+    p.on('close', () => ok(text));
+  });
+  const found = [];
+  for (const m of String(err).matchAll(/black_start:([\d.]+) black_end:([\d.]+)/g)) {
+    const at = Number(m[1]), until = Number(m[2]);
+    if (at < 0.5 || until > filmEnd - 0.5) continue;
+    /* the picture showing then, the top track first */
+    const showing = pictures.filter((p) => p.at <= at + 0.04 && (p.end ?? filmEnd) > at + 0.04).sort((a, b) => a.track - b.track || b.at - a.at)[0];
+    let cause = 'render';
+    if (showing && showing.tag === 'video' && existsSync(join(dir, showing.file))) {
+      const t = showing.from + Math.max(0, at - showing.at) * showing.speed;
+      try {
+        const raw = /** @type {Buffer} */ (await run('ffmpeg', ['-v', 'error', '-ss', String(t), '-i', join(dir, showing.file), '-frames:v', '1', '-vf', 'scale=16:9,format=gray', '-f', 'rawvideo', '-'], true));
+        /* black everywhere, not a dark picture with a light in it */
+        if (raw.length && raw.reduce((top, v) => Math.max(top, v), 0) < 30) cause = 'source';
+      } catch { /* the file's frame could not be read: the render's */ }
+    }
+    found.push({ at: round(at), until: round(until), clip: showing?.id ?? 'no clip', cause });
+  }
+  return found;
 }
 
 /**
@@ -1140,10 +1180,10 @@ async function main(/** @type {string[]} */ argv) {
         else if (c?.on) console.log(`${head}: ${c.starts.length ? `${c.starts.join(', ')} start${c.starts.length === 1 ? 's' : ''}` : 'a cut, but nothing starts there'}`);
         else console.log(`${head}: no cut at the lift${c ? ` (nearest cut ${c.t} s, ${c.frames > 0 ? '+' : ''}${c.frames} frames${c.starts.length ? `: ${c.starts.join(', ')}` : ''})` : ''}`);
       }
-      if (r.render) console.log(`picture: ${r.barred.length ? `${r.barred.length} shot(s) with black bars` : 'no black bars'} in the render ${r.render}`);
+      if (r.render) console.log(`picture: ${r.barred.length ? `${r.barred.length} shot(s) with black bars` : 'no black bars'}, ${r.black.length ? `${r.black.length} black frame(s) inside the film (${r.black.map((b) => `${b.at.toFixed(2)} s`).join(', ')})` : 'no black frames inside the film'}, in the render ${r.render}`);
       console.log(r.todo.length ? `TO DO (${r.todo.length}):\n${r.todo.map((t) => `  - ${t}`).join('\n')}` : 'TO DO: nothing in the cuts.');
     }
-    return flags.has('--strict') && (r.onGrid < r.cuts.length || r.gaps.length || r.pastEnd.length || !r.shape.ok || r.barred.length) ? 1 : 0;
+    return flags.has('--strict') && (r.onGrid < r.cuts.length || r.gaps.length || r.pastEnd.length || !r.shape.ok || r.barred.length || r.black.length) ? 1 : 0;
   }
   const file = rest[0];
   if (!existsSync(file)) throw new Error(`no file ${file}`);

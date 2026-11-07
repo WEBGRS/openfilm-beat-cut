@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- `check` finds black frames inside the render (not the film's fade in and out) and says whether the clip's own file is black there or the render drew the frame black where the file has picture. In the trials of request 2 both arms had three single black frames at cuts, `look --full` flagged them, and both agents took them for the footage.
+
 ## 0.2.0
 
 - `beats.mjs` puts the beats of music that keeps one tempo on a straight line. The tracker had drifted off it by up to 7 frames where the attacks change or fade (a quiet part), and `check` could not see that, since it compared cuts with the same beats. The measure says how many beats it moved and by how much.

@@ -27,7 +27,7 @@ this, however good the shots.
   for words or a face; a cut on every beat only in a short burst.
 - **Music that suits the film**, in mood and speed; under speech, low enough that every word is clear.
 - **Their footage as it is.** Trimmed with `#t=`, never re-encoded or changed in speed to fit a beat: move the cut,
-  or choose another moment of the clip. Black bars in a clip's own picture are cropped with CSS.
+  or choose another moment of the clip.
 
 ## What you have
 
@@ -35,25 +35,24 @@ this, however good the shots.
 `beats/<name>.html` (a playable waveform) and prints the tempo, whether the beats are one straight line, the quiet
 and loud sections and the second the music lifts. Times are seconds of the music file: a music clip placed at `at`
 and trimmed with `#t=in` puts music second m at film second `at + (m − in) / speed`. When it names another tempo or
-says the bars are a guess, do what it says (`--bpm`, `--bar`). Under `steady 0.25` the music has little beat: cut on
-its hits and phrases.
+says the bars are a guess, do what it says (`--bpm`, `--bar`). Under `steady 0.25` cut on its hits and phrases.
 
 `beats.mjs snap <beats/name.json> <seconds…> --to beat|half|bar|hit` gives the nearest mark to each second.
 
-`beats.mjs check` in the film's folder reads film.html and, when a render lies beside it, the render. Run it once
-the cuts are in and again after `npx openfilm render`. It ends with TO DO: work through the list and run it again
-until it says nothing is left. `--strict` exits 1 while something is.
+`beats.mjs check` in the film's folder reads film.html and, when one lies beside it, the render. Run it when the cuts
+are in and again after `npx openfilm render`. It ends with TO DO: work through the list until it says nothing is
+left. `--strict` exits 1 while something is.
 
 `npx openfilm look assets/<clip>` shows a clip's frames. After rendering, `npx openfilm look --full` lists white
-flashes, black frames and stills. A film's contact sheet does not show cuts: `look <t>` the cut at the lift, one
-cut in each section, and either side of the cuts that matter.
+flashes, black frames and stills; `check` says which black frames the render drew. A film's contact sheet does not
+show cuts: `look <t>` the cut at the lift, one cut in each section, and either side of the cuts that matter.
 
 Music comes from the person, from OpenFilm's free library (`npx openfilm get music-search --prompt "<what>"`), or
-from another source whose licence allows it. Speech in footage: `npx openfilm get asr --src <clip>`. The
-`footage-cut` skill, when installed, logs a folder of clips shot by shot.
+from a source whose licence allows it. Speech in footage: `npx openfilm get asr --src <clip>`. The `footage-cut`
+skill, when installed, logs a folder of clips shot by shot.
 
 ## With the person
 
 What they ask for comes first: purpose, length, music, the shots that must be in it. Ask without holding up the
 work. When done, say in a few lines: the tempo, cuts and how many on the beat, shots per section, the shot on the
-lift, and any cut left off the beat on purpose.
+lift, any cut left off the beat on purpose, and anything `check` or `look --full` still flags.

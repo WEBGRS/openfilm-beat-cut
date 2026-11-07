@@ -32,9 +32,10 @@ section of the music), the shape (the shots of the quiet and mid parts against t
 each bar's level, as a ratio and a rank correlation), where the film enters and leaves the music and how many bars
 it starts before the lift, a WARN for four or more shots of one length in a row lasting longer than two bars, and
 which clip starts at the lift. When a render lies beside film.html and is newer than it, `check` also looks at the
-middle of every shot for black bars inside the picture. It ends with TO DO, a list of what is left to fix, and
+middle of every shot for black bars inside the picture, and for black frames inside the film (not its fade in and
+out), saying whether the clip's file is black there or the render drew the frame black. It ends with TO DO, a list of what is left to fix, and
 `--strict` exits 1 on a cut off the grid, a GAP, a PAST END, a shape that does not follow the music (the quiet parts'
-shots under 1.5 times the loud parts', or the correlation under 0.3) or black bars.
+shots under 1.5 times the loud parts', or the correlation under 0.3) black bars or a black frame inside the film.
 
 How it measures: the sound at 22.05 kHz, 40 pitch-spaced bands, onset strength from the rise in each band; the tempo
 from the onset strength's autocorrelation, weighted toward 120 BPM; the beats by dynamic programming (Ellis 2007).

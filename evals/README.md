@@ -5,14 +5,15 @@ How this skill was tried. Nothing here goes to the agent: only `skills/` is inst
 Two requests, each run once with the skill and once without, on OpenFilm 0.3.0. Where the music has a quiet part and
 a lift, the films made with the skill start in the quiet part, hold longer shots there and put a cut on the second
 the music lifts. The films made without it used a loud stretch of the track and never reached the lift. Neither
-request asked for the lift. On cutting to the beat the arms did not differ in a way a person would hear: every film
-has all its cuts within 1.1 frames of the music's beat grid, and the arm without the skill was closer on request 2
-(0.04 frames on average against 0.2 to 0.3). The first trial's four cuts off the beat did not come back. Both films of
-request 2 had three single black frames at cuts, and both agents took what `look --full` flagged for the footage.
-The second run of request 2, with the skill fixed for that, had none, so the new black frame report was never
-tested on an agent.
+request asked for the lift. On cutting to the beat the measures do not separate the arms: every film has all its
+cuts within 1.1 frames of the music's beat grid, and the arm without the skill was closer on request 2 (0.04 frames
+on average against 0.2 to 0.3). The first trial's four cuts off the beat did not come back. Both films of
+request 2 had three single black frames at cuts. Each sits at a hole of 0.3 to 5 ms between two clips in film.html,
+and both agents took what `look --full` flagged for the footage. `check` did not call those holes before 0.2.2, and
+0.2.2 was tried on the finished films, not by an agent. The second run of request 2 had no holes and no black
+frames.
 
-- Skill version: 0.2.0 for the first run of each request, 0.2.1 for the second run of request 2
+- Skill version: 0.2.0 for the first run of each request, 0.2.1 for the second run of request 2. 0.2.2, the version tagged, differs in `check` only and was run on the five finished films
 - Agent: Claude Code, headless, in a project outside the home folder, so no personal rules applied
 - Model: `claude-sonnet-5-5`, as `run.jsonl`'s init event reports it in every run. The usage totals also list `claude-haiku-5-5`
 - OpenFilm: 0.3.0, the only version the runs could use
@@ -23,8 +24,8 @@ tested on an agent.
 
 Both requests were written to files before the first run and not changed. They are the requests of the first trial,
 word for word, on the same material. Each ran once in each arm. The second run of request 2 is the one extra run the
-rules allow after a defect a run exposed: the black frames. The earlier row is kept. No request names the skill.
-Request 1 says 卡点, the usual Chinese word for cutting on the beat, which also appears in the skill's description.
+rules allow after a defect a run exposed: the black frames. The earlier row is kept. The fix made for that run (0.2.1) did not find the cause of the black frames; 0.2.2 did,
+after the one extra run was used. No request names the skill. Request 1 says 卡点, the usual Chinese word for cutting on the beat, which also appears in the skill's description.
 
 ## Request 1
 
@@ -46,7 +47,7 @@ assets 文件夹里是我这次旅行拍的素材（clip01–clip12），还有�
 | black stretches in the render | the last frame | the first and last frame, fades |
 | sound level, whole film and last 0.3 s | -19.3 dB, -39.4 dB | -14.5 dB, -38.6 dB |
 | minutes, turns, cost | 17.0, 39, $0.59 | 22.5, 38, $0.57 |
-| the skill's own `check` (the measure the skill works against) | 32/32 on the grid, quiet shots 4.0 times as long as loud, cuts per bar against level r 0.59, nothing to do | 45/45 on the grid, no quiet part in the music used, r 0.03, 3 items to do |
+| the skill's own `check` 0.2.2, run on the finished film | 32/32 on the grid, quiet shots 4.0 times as long as loud, cuts per bar against level r 0.59, nothing to do | 45/45 on the grid, no quiet part in the music used, r 0.03, 3 items to do |
 
 Seen, with: skyline, market, night motorbikes and a sunset sea in the four long shots of the quiet part, then at 15.23 s
 the cut to a drone shot of a surfer on a large green wave, on the second the music steps up. Surf, kite, coast and
@@ -77,17 +78,18 @@ Using OpenFilm, make a 30 second skate highlight reel for our crew from the clip
 | shots by section of the music | quiet: 7, mean 2.45 s; loud: 12, mean 1.11 s | quiet: 6, mean 2.54 s; loud: 16, mean 0.95 s | loud: 21, mean 1.43 s |
 | longest run of shots of one length | 3 | 3 | 4 |
 | single black frames inside the film | 3 (21.9, 23.8, 25.7 s) | 0 | 3 (6.67, 21.9, 26.67 s) |
+| holes of 0.1 ms or more between clips in film.html | 5, of 0.3 ms | 0 | 20, of 2 to 5 ms |
 | sound level, whole film and last 0.3 s | -14.6 dB, -13.0 dB | -14.6 dB, -12.7 dB | -10.5 dB, -9.7 dB |
 | minutes, turns, cost | 24.8, 37, $0.51 | 25.9, 32, $0.43 | 12.6, 33, $0.38 |
-| the skill's own `check` | 18/18 on the grid, quiet 2.2 times as long as loud, r 0.44, nothing to do at 0.2.0 and the 3 black frames at 0.2.1 | 21/21 on the grid, 2.7 times, r 0.51, nothing to do | CHECKWITHOUT |
+| the skill's own `check` 0.2.2, run on the finished film | 18/18 on the grid, quiet 2.2 times as long as loud, r 0.44, 2 items to do (the holes and the black frames) | 21/21 on the grid, 2.7 times, r 0.51, nothing to do | 20/20 on the grid, no quiet part in the music used, 6 items to do (the holes, the black frames, a run of equal shots, the start and the end of the music, the lift) |
 
 Seen, with, first run: a wide of the bowl, longer trick shots over the quiet bars, then the jump over two seated
 skaters (clip09) on the lift, and a burst of one-beat shots. The music stops on a bar line at 131.45 s with no fade.
 Frames 657, 714 and 771 of the render are black on every pixel: a one-frame flash at three cuts. The source files
 have picture at those seconds (clip08 at 15.9, clip04 at 22.8, clip02 at 13.0). `look --full` flagged all three as
-near black, and the agent wrote that they sit on cuts in the dark arena footage and did not open them. The three
-clips with black side bars in the files (clip02, clip06, clip10) are scaled to fill the frame and the render shows no
-bars.
+near black, and the agent wrote that they sit on cuts in the dark arena footage and did not open them. In film.html
+each of the three clips starts 0.3 ms after the one before it ends. The three clips with black side bars in the
+files (clip02, clip06, clip10) are scaled to fill the frame and the render shows no bars.
 
 Seen, with, second run: two shots of the bowl (clip03) and arena trick shots over the quiet bars, then on the lift
 a cut to a skater crouched on a Moscow ramp (clip04); the agent's report calls it an airborne trick, and the frame
@@ -97,9 +99,27 @@ at 15.4 s shows him crouching. Most of the loud part is the Tokyo arena clips. T
 
 Seen, without: tricks from all ten clips in 1.43 s shots, three beats each, cut on the beat to 0.07 frames. Frames
 200, 657 and 800 are black on every pixel, one frame at three cuts, each at the start of a clip02 shot (clip02 is
-one of the three files with side bars; they are zoomed to fill the frame). The agent's report names `look --full`
-flagging near black at 21.9 s and calls it footage, without confirming. The music is the loud stretch from 60.5 s and ends on
-the beat with no fade.
+one of the three files with side bars; they are zoomed to fill the frame). In film.html each of those clips starts
+after the end of the one before it, by 5, 5 and 3 ms. The agent's report names `look --full` flagging near black at
+21.9 s and calls it footage, without confirming. The music is the loud stretch from 60.5 s and ends on the beat with
+no fade.
+
+## The black frames of request 2
+
+Every black frame in the two first films of request 2 is at a hole between two clips. The agents wrote `at` times
+rounded to four decimals (with the skill) or three (without it), so a clip began a little after the one before it
+ended. The film made with the skill has five holes of 0.3 ms and three of them are black; the film made without it
+has 20 holes of 2 to 5 ms and three are black. The second run of request 2 has no holes, its clip times being exact
+sums, and the films of request 1 have none; none of those three has a black frame inside. Most holes hold no frame
+and drew nothing; the black ones are those where a frame fell on the hole or its end. `look --full` calls these
+frames near black and does not say where they come from, which is how both agents came to read them as the footage.
+
+`check` before 0.2.2 called a hole a GAP only from half a frame, or with a frame inside it, so it listed none of
+these. 0.2.2 calls any hole of 0.1 ms or more between clips a GAP and names a black frame at a GAP as its. The
+test `two clips that do not meet, by a third of a millisecond, are a GAP` fails with the earlier rule. Closing the
+holes and rendering again, to show that the black frames go, was not done: the machine had no memory for another
+full render. A range render of the first film from 21.7 to 22.2 s drew the frame at 21.9 s with picture, so the
+frame's colour depends on how the render is cut up as well as on the hole.
 
 ## The four cuts that were off in 0.1.1
 
@@ -182,16 +202,14 @@ folded on that period. It was made for the first trial and not changed since. `l
 largest rise of the level over half a second against the half second before it, after the first 20 s of the file:
 115.98 and 116.21 s, which `beats.mjs` 0.2.0 reports as 115.998 and 116.222.
 
-The other measures: picture cuts from film.html, each confirmed in the render by a jump in ffmpeg's scene score within
+`measure.mjs` also runs the skill's `check` on the film and lists its numbers apart. The other measures: picture cuts from film.html, each confirmed in the render by a jump in ffmpeg's scene score within
 2 frames; shots by section from the sections of `beats.mjs`; black stretches (ffmpeg's `blackdetect`, one frame or
-more) and sound levels from the render. The last row of each table is the skill's `check` run on the film, listed
-apart because the skill works against it.
+more) and sound levels from the render. The last row of each table is that `check`, listed apart because the skill works against it.
 
 ## Not tried
 
 - Speech under the music, music with no clear beat (`steady` under 0.25), music whose tempo changes, and photo or page shots
 - A person's own footage, other tracks, other agents or models, a request in another language
 - Playing a film in Studio or listening to it: the sound rows are measured, not heard
-- The cause of the black frames. Range renders of 21.7 to 22.2 s of the first film drew the frame at 21.9 s with picture;
-  a full render of the same project was stopped for lack of memory before it finished
-- Whether an agent acts on `check`'s black frame item: the second run of request 2 had no black frames to report
+- Closing the holes in the first film of request 2 and rendering it again, to show that the black frames go
+- Whether an agent acts on `check`'s GAP and black frame items for holes this small: no run saw them, since 0.2.2 came after the runs

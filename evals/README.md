@@ -104,3 +104,9 @@ node evals/measure.mjs <film folder> --beats beats/movement-proposition.json --p
 The waveform grid (`--period`, `--t0`) was made apart from the skill. The period is a constant-tempo fit to librosa's beats: 120.015 and 126.001 BPM, where Incompetech lists 120 and 126. The phase is the strongest rise in the waveform folded on that period. The phase first came from librosa, corrected by its click-track offset. It was moved to the waveform after the first film (request 1 without) had been measured, and not changed after that. On the first phase request 1 scores 28/35 with the skill and 48/48 without, so the move favoured the arm with the skill by three cuts and did not change the reading.
 
 The other measures: picture cuts from film.html, each confirmed in the render by a jump in ffmpeg's scene score within 2 frames; the lift from the `liftBeat` of `beats.mjs`. On request 2, 116.21 s matches the largest rise of RMS energy found with librosa (116.23 s). On request 1 that largest rise is the track's opening at 4.14 s, and the rise at 116.49 s is visible in the waveform on the film's sheet; shots by section from the sections of `beats.mjs`; sound levels from the render.
+
+## On OpenFilm 0.3.0
+
+After the trials, a copy of a finished trial project was run on the released OpenFilm 0.3.0 (Windows 11, 2026-11-06), without an agent and not in Studio.
+
+`look` passed and a 4 s `render` came out.

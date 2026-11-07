@@ -1,8 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+- `check` calls two clips that do not meet a GAP from a tenth of a millisecond, where it had called a hole a GAP only from half a frame or with a frame inside it. In the trials of request 2 every black frame (3 in each film) sat at a hole of 0.3 to 5 ms between two clips in film.html, written by rounding `at`: a frame that falls on the hole's end is drawn black. A black frame at a GAP is named as the GAP's, and the TO DO says to start each clip where the one before it ends.
+- The brief says `check` finds holes between clips.
+
 ## 0.2.1
 
-- `check` finds black frames inside the render (not the film's fade in and out) and says whether the clip's own file is black there or the render drew the frame black where the file has picture. In the trials of request 2 both arms had three single black frames at cuts, `look --full` flagged them, and both agents took them for the footage.
+- `check` finds black frames inside the render (not the film's fade in and out) and says whether the clip's own file is black there or the render drew the frame black where the file has picture. In the trials of request 2 both arms had three single black frames at cuts, `look --full` flagged them, and both agents took them for the footage. Their cause was found after this version, in 0.2.2.
 
 ## 0.2.0
 

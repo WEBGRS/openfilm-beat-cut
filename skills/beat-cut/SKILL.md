@@ -40,8 +40,8 @@ says the bars are a guess, do what it says (`--bpm`, `--bar`). Under `steady 0.2
 `beats.mjs snap <beats/name.json> <seconds…> --to beat|half|bar|hit` gives the nearest mark to each second.
 
 `beats.mjs check` in the film's folder reads film.html and, when one lies beside it, the render. Run it when the cuts
-are in and again after `npx openfilm render`. It ends with TO DO: work through the list until it says nothing is
-left. `--strict` exits 1 while something is.
+are in and again after `npx openfilm render`. It finds holes between clips, which render as black frames. It ends
+with TO DO: work through the list until it says nothing is left. `--strict` exits 1 while something is.
 
 `npx openfilm look assets/<clip>` shows a clip's frames. After rendering, `npx openfilm look --full` lists white
 flashes, black frames and stills; `check` says which black frames the render drew. A film's contact sheet does not

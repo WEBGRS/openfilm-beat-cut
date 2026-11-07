@@ -26,7 +26,7 @@ come from. The page draws the beats, bars, hits and the quiet and loud sections 
 beside it, so a voice-over is never taken for the music), follows its `at`, `#t=` and `speed`, and lists every
 picture cut over the music with how many frames it is from the nearest beat and whether it is on a beat, a half beat
 or a hit (within a frame) or OFF (the measure goes to `beats/` beside film.html, or `--out`). Edges less than half a
-frame apart are one cut. It also reports a GAP (no picture for half a frame or more, or on any frame), an OVERLAP of
+frame apart are one cut. It also reports a GAP (no picture for a tenth of a millisecond or more between clips, since a frame on the hole's end is drawn black; at the film's end, half a frame), an OVERLAP of
 clips on one track, a clip whose `#t=` runs PAST END of its file, the pace (shots and their mean length in each
 section of the music), the shape (the shots of the quiet and mid parts against the loud parts, and cuts a bar against
 each bar's level, as a ratio and a rank correlation), where the film enters and leaves the music and how many bars
@@ -56,8 +56,12 @@ How well, measured with `tools/`:
   half and double cases the run says "it may also be … BPM".
 - **Beats and bars against a score**: 14 renders from XSXB-Band, whose MIDI gives the true grid. The 11 with a clear
   beat: tempo right in all 11, beats F-measure 0.95 to 1.00, bars 0.99 to 1.00 (70 ms tolerance), against 0.86 to 1.00
-  and 0.82 to 1.00 before the straight line. The 3 ambient beds (60 and 72 BPM) fail; all three report `steady` under
-  0.25, which the run and the brief treat as "little beat: cut on the hits and phrases".
+  and 0.82 to 1.00 before the straight line. In 10 of the 11 the beats now sit 14 to 22 ms after the score's note times (4 to 18 ms
+  before); the 10 ms shift that puts the line on a synthetic kick's attack is in that, and the samples' own
+  attack time is not separated from it. The 3 ambient beds (60 and 72 BPM) fail; all three report `steady` under 0.25,
+  which the run and the brief treat as "little beat: cut on the hits and phrases".
+- **Constant or not, on the 12 tracks of these trials**: 11 keep a straight line (funky-boxstep at 95% of its
+  stretches, the rest at all of them); one (ether-vox) does not, and keeps the tracker's beats.
 - **Synthetic drift**: tempo ramps (100 to 112, 90 to 80 BPM) and 12 to 15 ms of played looseness: beats F 0.99 to
   1.00.
 - **A constant tempo whose strongest attack changes from the off beat to the kick** (the test in `test/`): the
@@ -105,7 +109,7 @@ node tools/drift.mjs
 
 OpenFilm 技能：跟着音乐剪片。每次换画面都踩在拍子上，换场景落在小节第一拍，最好的镜头放在音乐起来的地方，安静的段落镜头长、热闹的段落镜头短。
 
-智能体听不见，但能读数字，所以这个技能唯一的脚本把音乐和片子的剪辑点都变成数字：`beats.mjs <音乐>` 测出速度、每一拍、每小节第一拍、比周围更突出的重音、每小节的响度、安静/中等/热闹的段落和音乐上扬的那一秒，写成 `beats/<名字>.json` 和一张能播放的波形页，并在命令行打印各段落、拍点是不是一条直线、小节从哪来。速度不变的音乐（做音乐时按节拍器做的大多如此）里，重音落在一条直线上：脚本用它取代追踪出来的拍点，因为追踪在重音变弱或换位的地方会偏离这条线多达 7 帧；速度会变的音乐保留追踪的拍点。`snap` 把秒数吸附到最近的拍、半拍、小节或重音。`check` 读 film.html，找到音乐（`--music` 指定的那段，否则是旁边没有 `.vtt` 的最长一段声音），逐个列出音乐范围内的画面剪辑点离最近的拍子差几帧，并说它在拍、半拍还是重音上（一帧内），否则标 OFF；它还报告 GAP、OVERLAP、PAST END、节奏、片子的形状（安静段和热闹段镜头长度之比，以及每小节剪辑数与该小节响度的相关）、片子从音乐的哪里进来、哪里出去、上扬前几小节开始、连续等长镜头的 WARN、上扬那一刻是哪个镜头开始；如果 film.html 旁边有比它新的渲染，还会看每个镜头中间画面里有没有黑边。最后打印 TO DO，列出还要改的事；`--strict` 在有剪辑点不在网格上、GAP、PAST END、形状不跟音乐走（安静段镜头不到热闹段的 1.5 倍，或相关低于 0.3）或有黑边时返回 1。只用 Node 和 ffmpeg，七分钟的曲子半分钟以内测完。
+智能体听不见，但能读数字，所以这个技能唯一的脚本把音乐和片子的剪辑点都变成数字：`beats.mjs <音乐>` 测出速度、每一拍、每小节第一拍、比周围更突出的重音、每小节的响度、安静/中等/热闹的段落和音乐上扬的那一秒，写成 `beats/<名字>.json` 和一张能播放的波形页，并在命令行打印各段落、拍点是不是一条直线、小节从哪来。速度不变的音乐（做音乐时按节拍器做的大多如此）里，重音落在一条直线上：脚本用它取代追踪出来的拍点，因为追踪在重音变弱或换位的地方会偏离这条线多达 7 帧；速度会变的音乐保留追踪的拍点。`snap` 把秒数吸附到最近的拍、半拍、小节或重音。`check` 读 film.html，找到音乐（`--music` 指定的那段，否则是旁边没有 `.vtt` 的最长一段声音），逐个列出音乐范围内的画面剪辑点离最近的拍子差几帧，并说它在拍、半拍还是重音上（一帧内），否则标 OFF；它还报告 GAP（片段之间 0.1 毫秒以上的空档，落在空档末尾的那一帧会被渲染成黑色）、OVERLAP、PAST END、节奏、片子的形状（安静段和热闹段镜头长度之比，以及每小节剪辑数与该小节响度的相关）、片子从音乐的哪里进来、哪里出去、上扬前几小节开始、连续等长镜头的 WARN、上扬那一刻是哪个镜头开始；如果 film.html 旁边有比它新的渲染，还会看每个镜头中间画面里有没有黑边、片子里有没有黑帧（并说明是空档、素材本身还是渲染造成的）。最后打印 TO DO，列出还要改的事；`--strict` 在有剪辑点不在网格上、GAP、PAST END、形状不跟音乐走（安静段镜头不到热闹段的 1.5 倍，或相关低于 0.3）、有黑边或黑帧时返回 1。只用 Node 和 ffmpeg，七分钟的曲子半分钟以内测完。
 
 需求书要求智能体：剪第一刀前先测音乐；每个剪辑点在一帧内落在拍、半拍或重音上（说话停顿处除外），偏离的要说明；片子的形状跟音乐走：安静时镜头长、热闹时短，换场景落在小节上，最强的镜头放在上扬处，最后一小节只放结尾；按乐句搭：上扬前留整数个 4 或 8 小节的乐句，结尾落在乐句末尾或淡出最后一小节；选上扬镜头前看完每段素材，用 `#t=` 挑每段里最好的那一刻；镜头长到看得清：画面最快一拍，有字或人脸两拍以上；音乐配得上片子，有人说话时压低；素材只裁不重编码、不变速；`check` 的 TO DO 要一条条做完，用 `look` 看上扬处和每个段落各一个剪辑点，渲染后用 `look --full`。
 

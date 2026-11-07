@@ -279,3 +279,32 @@ test('check: a black frame inside the render is the footage\'s where the file is
   assert.deepEqual(clean.black, []);
   assert.ok(!clean.todo.some((t) => /black/.test(t)), clean.todo.join(' | '));
 });
+
+test('check: two clips that do not meet, by a third of a millisecond, are a GAP, and the black frame the render draws there says so', async () => {
+  const dir = join(scratch, 'seam');
+  mkdirSync(join(dir, 'assets'), { recursive: true });
+  wav(join(dir, 'assets', 'song.wav'), grid({ bpm: 120, seconds: 20, start: 0.25 }), { seconds: 20 });
+  const film = (second) => writeFileSync(join(dir, 'film.html'), `<!doctype html><html><body>
+<section><img src="assets/a.png#t=0,1.9997" at="0"><img src="assets/b.png#t=0,2.0" at="${second}"><img src="assets/c.png#t=0,2.0" at="${Math.round((second + 2) * 10000) / 10000}"></section>
+<section><audio src="assets/song.wav#t=0.25,6.2497" at="0"></audio></section>
+</body></html>`);
+  /* b starts at 2.0 s, where a's 1.9997 s does not reach: frame 60 falls on the hole's end */
+  film(2);
+  const holed = await check(join(dir, 'film.html'));
+  assert.deepEqual(holed.gaps.map((g) => [g.start, g.end, g.length]), [[1.9997, 2, 0.0003]], JSON.stringify(holed.gaps));
+  assert.ok(holed.todo.some((t) => /^1 GAP: fill it or close it; a clip starts where the one before it ends/.test(t)), holed.todo.join(' | '));
+  const out = spawnSync(process.execPath, [SCRIPT, 'check', 'film.html', '--strict'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /GAP 0\.0003 s with no picture after a\.png \(film 1\.9997–2\.0000 s\)/);
+  /* positive control: b starts where a ends */
+  film(1.9997);
+  const meets = await check(join(dir, 'film.html'));
+  assert.deepEqual(meets.gaps, []);
+  /* the render with its black frame at 2.0 s (frame 60) while the hole is there */
+  film(2);
+  const ff = spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=96x54:d=6:r=30', '-vf', "geq=lum='if(eq(N,60),0,lum(X,Y))':cb=128:cr=128", '-pix_fmt', 'yuv420p', join(dir, 'film.mp4')]);
+  assert.equal(ff.status, 0, String(ff.stderr));
+  const drawn = await check(join(dir, 'film.html'));
+  assert.deepEqual(drawn.black.map((b) => [b.at, b.cause]), [[2, 'hole']], JSON.stringify(drawn.black));
+  assert.ok(drawn.todo.some((t) => /1 black frame where two clips do not meet \(film 2\.00 s\): close the GAP above/.test(t)), drawn.todo.join(' | '));
+});

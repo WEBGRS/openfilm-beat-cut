@@ -833,14 +833,15 @@ export async function check(filmFile, o = {}) {
     return { t: cut.t, music: round(at), beat: beat.at, bar: isBar, frames, kind, clips: cut.clips };
   });
 
-  /* no picture: a stretch none covers that a frame falls in, or half a frame long */
+  /* no picture: a stretch none covers, from a tenth of a millisecond: a frame on its end or inside it is drawn black */
   const spans = pictures.map((p) => ({ id: p.id, track: p.track, a: p.at, z: shownTo(p) })).sort((x, y) => x.a - y.a);
-  const frameIn = (/** @type {number} */ a, /** @type {number} */ z) => Math.ceil(a * fps - 1e-6) / fps < z - 1e-6;
+  const r4 = (/** @type {number} */ x) => Math.round(x * 10000) / 10000;
   /** @type {{ start: number, end: number, length: number, after: string | null, before: string | null }[]} */
   const gaps = [];
   let cursor = 0, lastId = /** @type {string | null} */ (null);
   const hole = (/** @type {number} */ z, /** @type {string | null} */ before) => {
-    if (z - cursor > 1e-6 && (z - cursor >= half || frameIn(cursor, z))) gaps.push({ start: round(cursor), end: round(z), length: round(z - cursor), after: lastId, before });
+    /* at the film's end, the sound running on by under half a frame is no hole */
+    if (z - cursor >= (before == null ? half : 1e-4)) gaps.push({ start: r4(cursor), end: r4(z), length: r4(z - cursor), after: lastId, before });
   };
   for (const s of spans) {
     hole(s.a, s.id);
@@ -948,13 +949,13 @@ export async function check(filmFile, o = {}) {
   /* the render of this film, if there is one: the picture's black bars, which look --full does not report */
   const render = renderOf(filmFile);
   const barred = render ? await bars(render, shots) : [];
-  const black = render ? await blackFrames(render, filmEnd, pictures, dir) : [];
+  const black = render ? await blackFrames(render, filmEnd, pictures, dir, gaps) : [];
 
   const off = rows.filter((c) => c.kind === 'off');
   /** @type {string[]} */
   const todo = [];
   if (off.length) todo.push(`${off.length} cut${off.length === 1 ? ' is' : 's are'} off the beat, the half beat and the hits (film ${off.slice(0, 6).map((c) => `${c.t.toFixed(2)} s ${c.frames > 0 ? '+' : ''}${c.frames} frames`).join(', ')}${off.length > 6 ? ', …' : ''}): move each to the beat, or say why it is off`);
-  if (gaps.length) todo.push(`${gaps.length} GAP${gaps.length === 1 ? '' : 's'}: fill ${gaps.length === 1 ? 'it' : 'each'} or close ${gaps.length === 1 ? 'it' : 'them'}`);
+  if (gaps.length) todo.push(`${gaps.length} GAP${gaps.length === 1 ? '' : 's'}: fill ${gaps.length === 1 ? 'it' : 'each'} or close ${gaps.length === 1 ? 'it' : 'them'}; a clip starts where the one before it ends (its \`at\` is the other's \`at\` plus its length, not a rounded time), or the frame there is black`);
   if (overlaps.length) todo.push(`${overlaps.length} OVERLAP${overlaps.length === 1 ? '' : 's'} on one track: one clip hides the other`);
   if (pastEnd.length) todo.push(`${pastEnd.length} clip${pastEnd.length === 1 ? ' is' : 's are'} trimmed past the end of the file (PAST END): choose another moment`);
   if (warnings.length) todo.push(`${warnings.length} run${warnings.length === 1 ? '' : 's'} of shots of one length (WARN): cut by the clock? give the shots their own lengths on the music's marks`);
@@ -966,7 +967,9 @@ export async function check(filmFile, o = {}) {
   if (lift && !lift.inFilm) todo.push(`the lift (music ${lift.music} s) is not in the film: use the music from a phrase before it, unless the person asked for another part`);
   else if (lift?.cut && !lift.cut.on) todo.push(`no cut at the lift (film ${lift.film} s): put the strongest shot there`);
   if (barred.length) todo.push(`black bars in the picture of ${barred.length} shot${barred.length === 1 ? '' : 's'} (${barred.slice(0, 6).map((b) => `${b.clip} at film ${b.at.toFixed(2)} s, ${b.side}`).join('; ')}${barred.length > 6 ? '; …' : ''}): they are in the clip's own picture; scale or crop each clip with CSS until the frame is picture`);
-  const own = black.filter((b) => b.cause === 'source'), drawn = black.filter((b) => b.cause !== 'source');
+  const own = black.filter((b) => b.cause === 'source'), drawn = black.filter((b) => b.cause === 'render');
+  const seam = black.filter((b) => b.cause === 'hole');
+  if (seam.length) todo.push(`${seam.length} black frame${seam.length === 1 ? '' : 's'} where two clips do not meet (${seam.slice(0, 6).map((b) => `film ${b.at.toFixed(2)} s`).join('; ')}${seam.length > 6 ? '; …' : ''}): close the GAP${seam.length === 1 ? '' : 's'} above, then render again`);
   if (own.length) todo.push(`black in the file itself where ${own.length === 1 ? 'a clip plays' : `${own.length} clips play`} (${own.map((b) => `${b.clip} at film ${b.at.toFixed(2)} s`).join('; ')}): start ${own.length === 1 ? 'it' : 'each'} at a moment of picture`);
   if (drawn.length) todo.push(`${drawn.length} black frame${drawn.length === 1 ? '' : 's'} in the render where the file has picture (${drawn.slice(0, 6).map((b) => `${b.clip} at film ${b.at.toFixed(2)} s`).join('; ')}${drawn.length > 6 ? '; …' : ''}): not the footage's, though look --full may call it that; render again, and where it stays start that clip a few frames earlier or later`);
   if (!render) todo.push('no render of this film yet: render it, run `npx openfilm look --full`, look at the cuts that matter, then run check again for the picture');
@@ -1022,11 +1025,11 @@ function renderOf(/** @type {string} */ filmFile) {
 
 /**
  * Frames of pure black in the render that are neither the film's fade in nor its fade out (within half a second of
- * either end): when the clip showing there is a video, whether its own file is black at that moment ('source') or has
- * picture ('render': the frame was drawn black).
+ * either end): at a hole between clips ('hole', a GAP), else, when the clip showing there is a video, whether its own
+ * file is black at that moment ('source') or has picture ('render': the frame was drawn black).
  * @returns {Promise<{ at: number, until: number, clip: string, cause: string }[]>}
  */
-async function blackFrames(/** @type {string} */ render, /** @type {number} */ filmEnd, /** @type {{ id: string, track: number, at: number, end: number | undefined, file: string, from: number, speed: number, tag: string }[]} */ pictures, /** @type {string} */ dir) {
+async function blackFrames(/** @type {string} */ render, /** @type {number} */ filmEnd, /** @type {{ id: string, track: number, at: number, end: number | undefined, file: string, from: number, speed: number, tag: string }[]} */ pictures, /** @type {string} */ dir, /** @type {{ start: number, end: number }[]} */ gaps) {
   const err = await new Promise((ok) => {
     const p = spawn('ffmpeg', ['-hide_banner', '-i', render, '-an', '-vf', 'blackdetect=d=0.03:pix_th=0.05', '-f', 'null', '-'], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
     let text = '';
@@ -1040,8 +1043,8 @@ async function blackFrames(/** @type {string} */ render, /** @type {number} */ f
     if (at < 0.5 || until > filmEnd - 0.5) continue;
     /* the picture showing then, the top track first */
     const showing = pictures.filter((p) => p.at <= at + 0.04 && (p.end ?? filmEnd) > at + 0.04).sort((a, b) => a.track - b.track || b.at - a.at)[0];
-    let cause = 'render';
-    if (showing && showing.tag === 'video' && existsSync(join(dir, showing.file))) {
+    let cause = gaps.some((g) => g.start <= at + 0.05 && g.end >= at - 0.05) ? 'hole' : 'render';
+    if (cause === 'render' && showing && showing.tag === 'video' && existsSync(join(dir, showing.file))) {
       const t = showing.from + Math.max(0, at - showing.at) * showing.speed;
       try {
         const raw = /** @type {Buffer} */ (await run('ffmpeg', ['-v', 'error', '-ss', String(t), '-i', join(dir, showing.file), '-frames:v', '1', '-vf', 'scale=16:9,format=gray', '-f', 'rawvideo', '-'], true));
@@ -1155,7 +1158,12 @@ async function main(/** @type {string[]} */ argv) {
         console.log(`  ${mark} film ${c.t.toFixed(3)} s  music ${c.music.toFixed(3)} s  nearest beat ${c.beat.toFixed(3)} s  ${c.frames > 0 ? '+' : ''}${c.frames} frames  ${c.clips.join(', ')}`);
       }
       if (r.unknown) console.log(`  ${r.unknown} clip end(s) not checked: a picture or a page with no #t= length`);
-      for (const g of r.gaps) console.log(`  GAP ${g.length.toFixed(3)} s with no picture ${g.after ? `after ${g.after}` : `before ${g.before}`} (film ${g.start.toFixed(3)}–${g.end.toFixed(3)} s${g.before ? '' : ', to the film\'s end'})`);
+      const secs = (/** @type {number} */ x, /** @type {number} */ digits) => x.toFixed(digits);
+      for (const g of r.gaps) {
+        /* a hole under a millisecond is told in tenths of a millisecond */
+        const d = g.length >= 0.001 ? 3 : 4;
+        console.log(`  GAP ${secs(g.length, d)} s with no picture ${g.after ? `after ${g.after}` : `before ${g.before}`} (film ${secs(g.start, d)}–${secs(g.end, d)} s${g.before ? '' : ', to the end of the film'})`);
+      }
       for (const v of r.overlaps) console.log(`  OVERLAP ${v.length.toFixed(3)} s on track ${v.track}: ${v.b} starts before ${v.a} ends`);
       for (const p of r.pastEnd) console.log(`  PAST END ${p.clip}: #t= reaches ${p.end} s, the file is ${p.length} s long`);
       if (r.pace.length) {

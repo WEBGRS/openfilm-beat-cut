@@ -93,7 +93,7 @@ files (clip02, clip06, clip10) are scaled to fill the frame and the render shows
 
 Seen, with, second run: two shots of the bowl (clip03) and arena trick shots over the quiet bars, then on the lift
 a cut to a skater crouched on a Moscow ramp (clip04); the agent's report calls it an airborne trick, and the frame
-at 15.4 s shows him crouching. Most of the loud part is the Tokyo arena clips. The music stops on a bar line at
+at 15.4 s shows the skater crouching. Most of the loud part is the Tokyo arena clips. The music stops on a bar line at
 131.46 s with no fade. The render has no black frame inside the film. `look --full` flagged four white flashes
 (11.5, 12.6, 20 and 28.6 s); the agent opened two and read them as bright footage, and I did not open the others.
 

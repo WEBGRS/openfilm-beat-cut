@@ -1,12 +1,16 @@
 # beat-cut
 
 An [OpenFilm](https://github.com/openfilm/openfilm) skill: a film cut to its music. Every change of picture lands on
-a beat, scene changes land on the first beat of a bar, the strongest shot sits where the music lifts, and shots run
-longer in the quiet parts than in the loud ones.
+a beat, a cut lands on the second the music lifts, and shots run longer in the quiet parts than in the loud ones.
+
+In two trials on OpenFilm 0.3.0, the films with and without the skill were all on the beat. The ones with the skill
+followed the quiet and loud parts and had a cut on the lift; the ones without it used a loud stretch and never reached
+the lift. Neither request asked for the lift, both tracks were picked for having one, and the films with the skill
+came out about 4 dB quieter. The numbers are in [evals](evals/README.md).
 
 | | | |
 | --- | --- | --- |
-| <img src="skills/beat-cut/cover.jpg" width="200" alt=""> | [Cut on the beat](skills/beat-cut) | A film cut to its music: every change on a beat, scene changes on the bars, the best shot where the music lifts. |
+| <img src="skills/beat-cut/cover.jpg" width="200" alt=""> | [Cut on the beat](skills/beat-cut) | A film cut to its music: every change on a beat, longer shots in the quiet parts, a cut on the second the music lifts. |
 
 An agent can't hear. It can read numbers, so the skill's one script measures the music and the film's cuts:
 
@@ -107,7 +111,9 @@ node tools/drift.mjs
 
 ## 中文说明
 
-OpenFilm 技能：跟着音乐剪片。每次换画面都踩在拍子上，换场景落在小节第一拍，最好的镜头放在音乐起来的地方，安静的段落镜头长、热闹的段落镜头短。
+OpenFilm 技能：跟着音乐剪片。每次换画面都踩在拍子上，音乐起来的那一秒正好换镜头，安静的段落镜头长、热闹的段落镜头短。
+
+在 OpenFilm 0.3.0 上的两次试验里，用不用技能的片子都卡在拍子上。用技能的片子跟着安静和热闹的段落走，并在音乐起来时换镜头；不用技能的片子选了一段热闹的音乐，没有用到音乐起来的那一刻。两个请求都没有要求这一点，两首音乐也是特意选的有这一刻的曲子，而且用技能的片子音量低约 4 dB。数字见 [evals](evals/README.md)。
 
 智能体听不见，但能读数字，所以这个技能唯一的脚本把音乐和片子的剪辑点都变成数字：`beats.mjs <音乐>` 测出速度、每一拍、每小节第一拍、比周围更突出的重音、每小节的响度、安静/中等/热闹的段落和音乐上扬的那一秒，写成 `beats/<名字>.json` 和一张能播放的波形页，并在命令行打印各段落、拍点是不是一条直线、小节从哪来。速度不变的音乐（做音乐时按节拍器做的大多如此）里，重音落在一条直线上：脚本用它取代追踪出来的拍点，因为追踪在重音变弱或换位的地方会偏离这条线多达 7 帧；速度会变的音乐保留追踪的拍点。`snap` 把秒数吸附到最近的拍、半拍、小节或重音。`check` 读 film.html，找到音乐（`--music` 指定的那段，否则是旁边没有 `.vtt` 的最长一段声音），逐个列出音乐范围内的画面剪辑点离最近的拍子差几帧，并说它在拍、半拍还是重音上（一帧内），否则标 OFF；它还报告 GAP（片段之间 0.1 毫秒以上的空档，落在空档末尾的那一帧会被渲染成黑色）、OVERLAP、PAST END、节奏、片子的形状（安静段和热闹段镜头长度之比，以及每小节剪辑数与该小节响度的相关）、片子从音乐的哪里进来、哪里出去、上扬前几小节开始、连续等长镜头的 WARN、上扬那一刻是哪个镜头开始；如果 film.html 旁边有比它新的渲染，还会看每个镜头中间画面里有没有黑边、片子里有没有黑帧（并说明是空档、素材本身还是渲染造成的）。最后打印 TO DO，列出还要改的事；`--strict` 在有剪辑点不在网格上、GAP、PAST END、形状不跟音乐走（安静段镜头不到热闹段的 1.5 倍，或相关低于 0.3）、有黑边或黑帧时返回 1。只用 Node 和 ffmpeg，七分钟的曲子半分钟以内测完。
 

@@ -10,8 +10,8 @@ on six songs, 0.4.0 on the three it reran) the drop of the film has a picture ev
 the gap without the skill is phase: on songs 2, 5, 6 and 8 most of those cuts sit on half beats of the kick grid. 0.3.0 broke on three songs: it read the Umbrella remix
 at half tempo, put the beats of "call me now" between the kicks (27 of 27 cuts on half beats), and found the drop of
 "Repeat" 17 s late, so that film opened with 12 s of slow pushes over the full climax. 0.4.0 fixes the first two and
-the late drop; on "Repeat" an independent kick measure still says its beats may be half a beat off. Nobody has watched
-or listened to these films.
+the late drop; on "Repeat" an independent kick measure still says its beats may be half a beat off. The owner watched
+and listened to the films of all nine songs, both arms, in OpenFilm Studio and accepted the skill.
 
 - Skill versions: 0.3.0 (the tag before this one) for the ten runs with the skill (song 4 twice), 0.4.0 (this tag) for three reruns
 - Agent: Claude Code, headless, in a project outside the home folder, so no personal rules applied
@@ -21,8 +21,8 @@ or listened to these films.
 - Transcripts: none supplied; no request asks for speech
 - The skill folder: each arm with the skill was given the committed folder; every run with the skill loaded it with
   the Skill tool and ran `beats.mjs`
-- The films were read from contact sheets at 15 frames a second from 1.5 s before the drop, and from frames. None was
-  watched
+- The films were read from contact sheets at 15 frames a second from 1.5 s before the drop, and from frames; the
+  owner then played both arms of every song in Studio
 
 The requests were written to files before the first run and not changed. They ask for a 卡点 or 踩点 video for 抖音,
 朋友圈 or B站, 20 to 30 s, in natural Chinese, and do not name the skill. Each song ran once in each arm. One run with

@@ -7,8 +7,8 @@ on the big hits. Every cut lands on a beat.
 On the climaxes of nine songs from a Bilibili 卡点 mix (OpenFilm 0.3.0), the films made with the skill had a picture
 event on 72 to 94% of the drop's beats; without it, 2 to 29% on seven songs and about the same as the skill on two.
 0.3.0 measured three of the nine wrong (half tempo, beats on the off beat, a drop found 17 s late); 0.4.0 fixes those,
-and on one song two kick measures still disagree on where the beat is. Nobody has watched the films; the numbers and
-frames are in [evals](evals/README.md).
+and on one song two kick measures still disagree on where the beat is. All nine songs were watched and listened to in Studio, with and without the skill; the
+numbers and frames are in [evals](evals/README.md).
 
 | | | |
 | --- | --- | --- |

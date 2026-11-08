@@ -2,214 +2,171 @@
 
 How this skill was tried. Nothing here goes to the agent: only `skills/` is installed.
 
-Two requests, each run once with the skill and once without, on OpenFilm 0.3.0. Where the music has a quiet part and
-a lift, the films made with the skill start in the quiet part, hold longer shots there and put a cut on the second
-the music lifts. The films made without it used a loud stretch of the track and never reached the lift. Neither
-request asked for the lift. On cutting to the beat the measures do not separate the arms: every film has all its
-cuts within 1.1 frames of the music's beat grid, and the arm without the skill was closer on request 2 (0.04 frames
-on average against 0.2 to 0.3). The first trial's four cuts off the beat did not come back. Both films of
-request 2 had three single black frames at cuts. Each sits at a hole of 0.3 to 5 ms between two clips in film.html,
-and both agents took what `look --full` flagged for the footage. `check` did not call those holes before 0.2.2, and
-0.2.2 was tried on the finished films, not by an agent. The second run of request 2 had no holes and no black
-frames.
+Three requests on three 卡点 tracks, each run once without the skill, once with 0.2.2 and once with 0.3.0, on
+OpenFilm 0.3.0. With 0.3.0 the drop of every film changes or hits the picture on 79 to 86% of the music's beats
+(frame jumps in the render), against 59 to 77% with 0.2.2 and 7 to 65% without the skill, and each film has a flash
+and a zoom on the second the music drops, a calmer build before it and a rush of short shots into it. The arm without
+the skill also put a zoom on every cut in all three films and, on request 2, a white flare over the drop, so the
+impact on a cut is not the skill's alone; what 0.3.0 adds is the punch on the beats between cuts, the flash on the
+drop and the phrases, the build and the rush, and cuts on the kick. On request 2 the film without the skill reads as
+a 卡点 edit too, and the difference there is smaller than the numbers suggest. Nobody has watched these films in
+Studio or listened to them.
 
-- Skill version: 0.2.0 for the first run of each request, 0.2.1 for the second run of request 2. 0.2.2, the version tagged, differs in `check` only and was run on the five finished films
+- Skill versions: 0.2.2 (the tag before this one) and 0.3.0 (this tag). The arm without the skill is shared by both
 - Agent: Claude Code, headless, in a project outside the home folder, so no personal rules applied
-- Model: `claude-sonnet-5-5`, as `run.jsonl`'s init event reports it in every run. The usage totals also list `claude-haiku-5-5`
-- OpenFilm: 0.3.0, the only version the runs could use
-- Date and OS: 2026-11-06 and 2026-11-07, Windows 11
-- Transcripts: none supplied. The clips carry their own ambient sound and no request asks for speech to be kept or cut
-- The skill folder: each arm with the skill was given the committed folder, which the harness copied when the arm got its run slot. The three runs read it (a Skill or Read of `SKILL.md`) and ran `beats.mjs` 5, 5 and 4 times: once to measure the music, the rest to check
-- The films were read from contact sheets and frames. None was watched in Studio or listened to
+- Model: `claude-sonnet-5-5`, as `run.jsonl`'s init event reports it in every run
+- OpenFilm: 0.3.0
+- Date and OS: 2026-11-07, Windows 11
+- Transcripts: none supplied. The clips carry their own ambient sound and no request asks for speech
+- The skill folder: each arm with the skill was given the committed folder. All six runs loaded it with the Skill
+  tool and ran `beats.mjs`; the three 0.3.0 runs ran `plan`, and their films carry the `punch` style block
+- The films were read from contact sheets at 15 frames a second around the drop and from frames. None was watched
 
-Both requests were written to files before the first run and not changed. They are the requests of the first trial,
-word for word, on the same material. Each ran once in each arm. The second run of request 2 is the one extra run the
-rules allow after a defect a run exposed: the black frames. The earlier row is kept. The fix made for that run (0.2.1) did not find the cause of the black frames; 0.2.2 did,
-after the one extra run was used. No request names the skill. Request 1 says 卡点, the usual Chinese word for cutting on the beat, which also appears in the skill's description.
+The requests were written to files before the first run and not changed. Each ran once in each arm; no run was
+repeated. They do not name the skill. They say 卡点, the usual Chinese word for a beat-synced edit, which is also in
+the skill's description. Below, the song's file name is shown as `<song>.mp3`: the songs are copyrighted and not
+named by file here.
 
-## Request 1
+## Why 0.3.0
 
-```
-assets 文件夹里是我这次旅行拍的素材（clip01–clip12），还有一首音乐 screen-saver.mp3。用 OpenFilm 帮我剪一条 45 秒左右的旅行卡点混剪，配这首音乐，要发朋友圈的。剪好导出成 mp4。
-```
+The owner watched the 0.2.x trials (two calm Kevin MacLeod tracks) and could not tell they were cut to the music,
+though every cut in both arms was within a frame of a beat. The 0.2.2 runs below show why: on the drop the picture
+held a shot for 1.0 to 1.9 s with nothing happening on the hits, and the skill's brief said a cut on every beat only
+"in a short burst". 0.3.0 adds `plan`, `punch` and the drop's share of marked beats in `check` (see the changelog).
 
-| measure | with 0.2.0 | without |
-| --- | --- | --- |
-| length (asked for about 45 s) | 44.00 s | 46.28 s |
-| music used, in seconds of the file | 100.75 to 144.75 | 0 to 46.28 |
-| cuts (of those, confirmed in the render's pixels) | 32 (32) | 45 (44) |
-| within 1 frame of a beat or half beat, waveform grid | 32/32 | 22/45 |
-| within 2 frames, waveform grid | 32/32 | 45/45 |
-| mean and worst frames off, waveform grid | 0.35, 0.42 | 1.00, 1.07 |
-| the lift (115.98 s of the music) | in the film at 15.23 s, a cut 0.5 frames from it | not in the film |
-| shots by section of the music | quiet: 4, mean 3.50 s; loud: 29, mean 1.03 s | mid: 1, 2.00 s; loud: 44, mean 0.91 s |
-| longest run of shots of one length | 8 | 8 |
-| black stretches in the render | the last frame | the first and last frame, fades |
-| sound level, whole film and last 0.3 s | -19.3 dB, -39.4 dB | -14.5 dB, -38.6 dB |
-| minutes, turns, cost | 17.0, 39, $0.59 | 22.5, 38, $0.57 |
-| the skill's own `check` 0.2.2, run on the finished film | 32/32 on the grid, quiet shots 4.0 times as long as loud, cuts per bar against level r 0.59, nothing to do | 45/45 on the grid, no quiet part in the music used, r 0.03, 3 items to do |
-
-Seen, with: skyline, market, night motorbikes and a sunset sea in the four long shots of the quiet part, then at 15.23 s
-the cut to a drone shot of a surfer on a large green wave, on the second the music steps up. Surf, kite, coast and
-motorbike shots follow, and the film ends fading out. `look --full` flagged one white flash at 39 s, which is spray in
-the clip05 footage. The agent used `check` four times: its first run listed a run of equal shots and no cut at the lift,
-and the film was changed to fix both. It left clip12 out and avoided the black stretches at the start of clip10.
-
-Seen, without: a 0.8 s fade up from black on an aerial surf shot, then city, motorbikes, kite and surf, a sunset
-sea, a market, and a fade to black. Cuts are on a grid of 0.28 s plus 0.5 s steps, which sits one frame after the
-waveform grid, so the 1-frame row splits and the 2-frame row does not. The agent set the loudness to -14 LUFS,
-ran `look --full` and found nothing flagged. The 46 s it used are the loud first part of the track, so the film has
-no quiet part and no lift.
-
-## Request 2
+## Request 1: phonk, skate clips
 
 ```
-Using OpenFilm, make a 30 second skate highlight reel for our crew from the clips in assets (clip01 to clip10), cut to the music in assets/movement-proposition.mp3. Export an MP4 when it's done.
+assets 里是我们滑板队拍的素材（clip01–clip10），还有一首 <song>.mp3。用 OpenFilm 给我剪一条 30 秒的卡点视频发抖音，要有那种踩点的感觉，鼓点一下一下都要卡上。剪好导出 mp4。
 ```
 
-| measure | with 0.2.0 | with 0.2.1, second run | without |
+| measure | with 0.3.0 | with 0.2.2 | without |
 | --- | --- | --- | --- |
-| length (asked for 30 s) | 30.47 s | 30.48 s | 30.00 s |
-| music used, in seconds of the file | 100.98 to 131.45 | 100.98 to 131.46 | 60.52 to 90.52 |
-| cuts (of those, confirmed in the render's pixels) | 18 (18) | 21 (21) | 20 (20) |
-| within 1 frame of a beat or half beat, waveform grid | 18/18 | 21/21 | 20/20 |
-| mean and worst frames off, waveform grid | 0.34, 0.67 | 0.23, 0.25 | 0.04, 0.07 |
-| the lift (116.21 s of the music) | in the film at 15.23 s, a cut 0.2 frames from it | in the film at 15.23 s, a cut 0.4 frames from it | not in the film |
-| shots by section of the music | quiet: 7, mean 2.45 s; loud: 12, mean 1.11 s | quiet: 6, mean 2.54 s; loud: 16, mean 0.95 s | loud: 21, mean 1.43 s |
-| longest run of shots of one length | 3 | 3 | 4 |
-| single black frames inside the film | 3 (21.9, 23.8, 25.7 s) | 0 | 3 (6.67, 21.9, 26.67 s) |
-| holes of 0.1 ms or more between clips in film.html | 5, of 0.3 ms | 0 | 20, of 2 to 5 ms |
-| sound level, whole film and last 0.3 s | -14.6 dB, -13.0 dB | -14.6 dB, -12.7 dB | -10.5 dB, -9.7 dB |
-| minutes, turns, cost | 24.8, 37, $0.51 | 25.9, 32, $0.43 | 12.6, 33, $0.38 |
-| the skill's own `check` 0.2.2, run on the finished film | 18/18 on the grid, quiet 2.2 times as long as loud, r 0.44, 2 items to do (the holes and the black frames) | 21/21 on the grid, 2.7 times, r 0.51, nothing to do | 20/20 on the grid, no quiet part in the music used, 6 items to do (the holes, the black frames, a run of equal shots, the start and the end of the music, the lift) |
+| length, music used (seconds of the file) | 30.0 s, 8.0 to 38.0 | 30.0 s, 8.0 to 38.0 | 30.0 s, 17.0 to 47.0 |
+| the drop (16.0 s of the music) in the film | at 8.0 s | at 8.0 s | 1 s before the film starts |
+| drop: picture events a second | 1.86 | 1.95 | 1.07 |
+| drop: beats with a picture event within 2.5 frames | 38/44 (0.86) | 34/44 (0.77) | 29/56 (0.52) |
+| drop: strong onsets with a picture event | 21/48 | 18/47 | 13/60 |
+| before the drop: picture events a second | 0.75 | 1.25 | no build |
+| mean frames from a picture event to the nearest onset | 0.69 | 0.71 | 0.98 |
+| minutes, turns, cost | 7.9, 33, $0.44 | 9.6, 50, $0.88 | 8.3, 26, $0.39 |
+| the skill's 0.3.0 `check` | 40 cuts on the grid; drop beats marked 40/40 (33 cuts, 7 punches) | 38 on the grid; 31/40, cuts only | 35 of 36 on the grid; 34/56, its own zooms not counted |
 
-Seen, with, first run: a wide of the bowl, longer trick shots over the quiet bars, then the jump over two seated
-skaters (clip09) on the lift, and a burst of one-beat shots. The music stops on a bar line at 131.45 s with no fade.
-Frames 657, 714 and 771 of the render are black on every pixel: a one-frame flash at three cuts. The source files
-have picture at those seconds (clip08 at 15.9, clip04 at 22.8, clip02 at 13.0). `look --full` flagged all three as
-near black, and the agent wrote that they sit on cuts in the dark arena footage and did not open them. In film.html
-each of the three clips starts 0.3 ms after the one before it ends. The three clips with black side bars in the
-files (clip02, clip06, clip10) are scaled to fill the frame and the render shows no bars.
+Seen, with 0.3.0: long shots with a slow push over the first 7 s, cuts at 7.0, 7.5 and 7.8 s, then at 8.0 s a bright,
+zoomed frame of the jump over two seated skaters settling within a few frames, and cuts on each beat after it. The
+frame at 16.0 s is brightened again (the next phrase). One dark rail clip comes back several times in the drop.
+With 0.2.2: a dark rail shot over 6 to 8 s, a cut at 8.0 s to a bright ramp, no change in scale or brightness at the
+drop. Without: no build; 1 s and 0.5 s shots each starting with a zoom from its own CSS, a dark camera-flip shot at
+7.5 s, and one rail shot held over 9 to 10 s.
 
-Seen, with, second run: two shots of the bowl (clip03) and arena trick shots over the quiet bars, then on the lift
-a cut to a skater crouched on a Moscow ramp (clip04); the agent's report calls it an airborne trick, and the frame
-at 15.4 s shows the skater crouching. Most of the loud part is the Tokyo arena clips. The music stops on a bar line at
-131.46 s with no fade. The render has no black frame inside the film. `look --full` flagged four white flashes
-(11.5, 12.6, 20 and 28.6 s); the agent opened two and read them as bright footage, and I did not open the others.
+## Request 2: EDM, surf and travel clips
 
-Seen, without: tricks from all ten clips in 1.43 s shots, three beats each, cut on the beat to 0.07 frames. Frames
-200, 657 and 800 are black on every pixel, one frame at three cuts, each at the start of a clip02 shot (clip02 is
-one of the three files with side bars; they are zoomed to fill the frame). In film.html each of those clips starts
-after the end of the one before it, by 5, 5 and 3 ms. The agent's report names `look --full` flagging near black at
-21.9 s and calls it footage, without confirming. The music is the loud stretch from 60.5 s and ends on the beat with
-no fade.
+```
+assets 文件夹里是我这次旅行拍的素材（clip01–clip12），配乐用 <song>.mp3。用 OpenFilm 帮我剪一条 30 秒左右的旅行卡点视频发抖音，前面铺垫一下，高潮那里要炸，画面跟着鼓点走。导出 mp4。
+```
 
-## The black frames of request 2
+| measure | with 0.3.0 | with 0.2.2 | without |
+| --- | --- | --- | --- |
+| length, music used, frame | 30.0 s, 8.5 to 38.5, 1080x1920 | 30.0 s, 1.0 to 31.0, 1920x1080 | 30.0 s, 4.76 to 34.76, 1920x1080 |
+| the drop (16.0 s of the music) in the film | at 7.5 s | at 15.0 s | at 11.24 s |
+| drop: picture events a second | 1.83 | 1.40 | 1.53 |
+| drop: beats with a picture event | 39/48 (0.81) | 19/32 (0.59) | 26/40 (0.65) |
+| drop: strong onsets with a picture event | 15/31 | 5/19 | 9/28 |
+| before the drop: picture events a second | 1.00 | 0.60 | 0.64 |
+| mean frames from a picture event to the nearest onset | 1.24 | 0.88 | 1.18 |
+| minutes, turns, cost | 12.2, 32, $0.49 | 8.9, 30, $0.43 | 14.4, 45, $0.76 |
+| the skill's 0.3.0 `check` | 43 cuts on the grid; 44/44 (36 cuts, 8 punches) | 26 on the grid; 18/28 | 32 of 34 on the grid; 25/33 |
 
-Every black frame in the two first films of request 2 is at a hole between two clips. The agents wrote `at` times
-rounded to four decimals (with the skill) or three (without it), so a clip began a little after the one before it
-ended. The film made with the skill has five holes of 0.3 ms and three of them are black; the film made without it
-has 20 holes of 2 to 5 ms and three are black. The second run of request 2 has no holes, its clip times being exact
-sums, and the films of request 1 have none; none of those three has a black frame inside. Most holes hold no frame
-and drew nothing; the black ones are those where a frame fell on the hole or its end. `look --full` calls these
-frames near black and does not say where they come from, which is how both agents came to read them as the footage.
+Seen, with 0.3.0: the agent made the film vertical for Douyin and cropped each shot. Coast and city shots before the
+drop, cuts at 6.6, 7.07 and 7.27 s, a brightened and zoomed surfer at 7.5 s, then a cut on nearly every beat. With
+0.2.2: eight bars of build, the drop at 15.0 s on a surfer shot held 1.9 s with no change in it. Without: a white flare
+that blooms from 11.0 s, is brightest about the drop and is gone by 11.5 s, then cuts about every beat with a zoom on
+each. This is the request where the arm without the skill comes closest.
 
-`check` before 0.2.2 called a hole a GAP only from half a frame, or with a frame inside it, so it listed none of
-these. 0.2.2 calls any hole of 0.1 ms or more between clips a GAP and names a black frame at a GAP as its. The
-test `two clips that do not meet, by a third of a millisecond, are a GAP` fails with the earlier rule. Closing the
-holes and rendering again, to show that the black frames go, was not done: the machine had no memory for another
-full render. A range render of the first film from 21.7 to 22.2 s drew the frame at 21.9 s with picture, so the
-frame's colour depends on how the render is cut up as well as on the hole.
+## Request 3: Chinese disco, skate clips
 
-## The four cuts that were off in 0.1.1
+```
+用 assets 里的滑板素材 clip01–clip10 和 <song>.mp3（野狼disco）剪一条 25 秒左右的卡点短视频，发 B 站和抖音，要节奏感强、看着很爽的那种。用 OpenFilm 做，导出 mp4。
+```
 
-In the first trial of request 1 (skill 0.1.1), four cuts of the arm with the skill sat 3.2 frames or more off a
-steady 120 BPM pulse, all in the music's quiet part, and the arm without the skill had none. The cause was in
-`beats.mjs`. Its beat tracker follows the strongest attack. In that track the strongest attack is the off beat in the
-loud parts and the kick in the quiet part, so at 100 to 116 s the tracked beats slid off the pulse, by up to 6.9
-frames, and from the lift on they stayed half a beat from where they had been. The agent cut on the beats it was
-given. `check` compared the cuts with those same beats, so it reported all 35 cuts as 0 frames off. Both should have
-caught it: `beats.mjs` never tested its beats against the tempo it had found, and `check` had no second opinion.
+| measure | with 0.3.0 | with 0.2.2 | without |
+| --- | --- | --- | --- |
+| length, music used | 24.5 s, 6.2 to 30.7 | 24.5 s, 6.2 to 30.7 | 26.9 s, 18.1 to 45.0 |
+| the drop (16.0 s of the music) in the film | at 9.81 s | at 9.81 s | 2.2 s before the film starts |
+| drop: picture events a second | 1.93 | 1.40 | 1.33 |
+| drop: beats with a picture event | 19/24 (0.79) | 17/24 (0.71) | 3/44 (0.07) |
+| drop: strong onsets with a picture event | 11/29 | 9/30 | 13/41 |
+| before the drop: picture events a second | 0.60 | 1.00 | no build |
+| mean frames from a picture event to the nearest onset | 0.74 | 0.65 | 1.33 |
+| minutes, turns, cost | 13.1, 38, $0.53 | 14.3, 43, $0.70 | 8.9, 27, $0.35 |
+| the skill's 0.3.0 `check` | 23 on a beat, 1 on a half beat; 20/20 (17 cuts, 3 punches) | 24 on the grid; 12/16 | 0 on a beat, 17 on a half beat, 11 off; 0/40 |
 
-0.2.0 puts the beats of music that keeps one tempo on a straight line and says how many beats it moved. The same
-film from that trial, checked again:
+Seen, with 0.3.0: three long shots with a slow push, cuts at 9.27 and 9.53 s, then at 9.87 s a brightened, zoomed
+frame of the jump over two seated skaters; the two-beat shot from 11.07 s is larger at 11.67 s (a punch on the beat
+inside it). With 0.2.2: the same jump at 9.83 s held 1.2 s with no change. Without: shots of two beats and one beat,
+each starting with a zoom (one variant with a slight rotation), music from after the drop. Its cuts follow librosa's
+beats, which in this song and in request 1's sit half a beat from the kick (see below), so they fall between kicks.
 
-| the film of request 1 with the skill at 0.1.1 | `check` 0.1.1 | `check` 0.2.0 |
-| --- | --- | --- |
-| cuts off the beat | 0 of 35 | 4 of 35, at 3, 4.9, 4.7 and 6.1 frames |
-| the waveform grid, written apart from the skill | 4 of 35 off | 4 of 35 off |
+## The measures
 
-The test `a constant tempo whose strongest attack moves from the off beat to the kick` makes the same fault in
-synthetic music: with 0.1.1 the worst beat is 3.7 frames off the grid, with 0.2.0 0.03 frames. In the new runs the
-cuts of the arms with the skill are on the grid: 0.42, 0.67 and 0.25 frames at worst.
+`feel.py` is one measure applied to every render, whichever arm made it. Picture events are frame jumps in the
+render (the mean change of a 64x36 grey frame at least 10 levels and three times the local median): cuts, punches,
+flashes and shakes all count, slow pushes do not. The song's beats from `beats.mjs` are moved to where the film plays
+the song by cross-correlating onset strength (the offsets found match each film's `#t=` in point), and the drop is
+the film from the song's lift on. A beat counts as marked with a picture event within 2.5 frames. Strong onsets are
+librosa onsets above the 60th percentile of strength, at least 0.2 s apart.
 
-That run's lift was wrong too. The measure put it at 116.49 s and the film put its strongest shot there, one beat
-after the music steps up (115.98 s by `evals/lift.mjs`, which does not use `beats.mjs`). The 0.1.1 row that said the
-cut was on the lift was measured against that wrong second. 0.2.0 finds the lift as the second the level steps up.
+The beat grid is the skill's own, so it could favour the arm with the skill. It was checked apart from the skill:
+in all three songs the rise in energy under 120 Hz is larger on the grid's beats than on its half beats (10.7 against
+6.7, 107 against 33, 73 against 47), so the beats are on the kick. librosa's beat tracker puts its beats 0.27 and
+0.22 s off them in the disco and phonk songs (about half a beat), and 0.01 s in the EDM song.
 
-## What the numbers do and do not show
+The `check` row is the skill's own measure, listed apart. It counts as punches only what `punch` wrote
+(`data-beat-fx`), so the zooms the arm without the skill wrote in its own CSS are not in it; `feel.py` sees them.
 
-A cut lands within 1 frame of a half-beat grid at these tempos by chance 27 to 28% of the time. Every film beats that.
+## Earlier trials, 0.2.x
 
-The waveform grid is a constant-tempo grid made apart from the skill. The arm without the skill on request 1 put its
-cuts 1.0 frame after it, so the 1-frame row falls between the two and reads 22/45. Read it with the 2-frame row.
-The beats of `beats.mjs` sit 0.2 to 0.3 frames from the waveform grid. The two disagree by less than half a frame,
-and neither is the truth to better than that.
-
-The arms differ on the music's shape because of where in the track they cut. The agents with the skill used the
-quiet part and the lift because the brief says to; the agents without it chose a loud stretch. Neither request said
-which part of the track to use. The skill's own `check` row is the measure the skill works
-against, so it favours the arm with the skill by construction; the other rows do not use it.
-
-Sound level differs between the arms: the films with the skill are 4.8 dB (request 1) and 4 dB (request 2) quieter
-than those without it, and in request 1 the agent without the skill set -14 LUFS. The skill says nothing about loudness.
+On two calm Kevin MacLeod tracks (Screen Saver, Movement Proposition; CC BY 4.0) with surf and skate clips, 0.2.0 to
+0.2.2 put every cut within 1.1 frames of a beat in both arms, used the quiet part and the lift where the arm without
+the skill used a loud stretch, and found that the black frames of one request came from holes of 0.3 to 5 ms between
+clips (fixed in 0.2.2). Those films are what the owner could not tell from a clock cut. The requests and numbers are
+in this file's history at tag v0.2.2.
 
 ## The material
 
-Same files in both arms, not in this repository. All clips were converted beforehand to 1080p H.264 at 30 fps with their own sound, under neutral names in shuffled order.
+Same files in both arms, not in this repository.
 
-Both tracks were picked before any run from 12 Incompetech tracks measured with the first version of `beats.mjs`, because they have a quiet part and a lift. A track without one would give the skill less to do, so these results lean toward what it does best.
+Music, private test material, not redistributed: "Murder In My Mind" by Kordhell (request 1), "The Spectre" by Alan
+Walker (request 2), "野狼Disco" by 宝石Gem (request 3). Each was cut to 48 to 54 s around its drop, with a short fade
+at the ends.
 
-Request 1 music: "Screen Saver", Kevin MacLeod (incompetech.com), CC BY 4.0. Clips:
+Clips (all converted to 1080p H.264 at 30 fps with their own sound, neutral names, shuffled):
 
-- Wikimedia Commons, CC BY-SA 4.0: Surfing-1012624 and Surfing-1012628, Dingle Peninsula, and Wind Surfing-1025737, Dingle Peninsula (Maoileann); Kite surfing at Viganj 163559 1 (Quahadi); Surfing in Tel Aviv MVI 3675 (Deror Avi); Hermanus Surf (Soaring Heights Imagery); Malibu-Surfrider Beach-First Point (Rybkovich); Surfing contest - oahu hawaii - north shore - oct 2015 (Nesnad)
-- Wikimedia Commons, CC0: Body surfing a wave (JaredMcKenzie)
-- Pexels License: [people shopping at market](https://www.pexels.com/video/people-shopping-at-market-14614813/), [a person riding a motorbike in a city at night](https://www.pexels.com/video/a-person-riding-a-motorbike-in-a-city-at-night-10597765/), [aerial view of modern city skyline at dusk](https://www.pexels.com/video/aerial-view-of-modern-city-skyline-at-dusk-32905112/)
-
-Request 2 music: "Movement Proposition", Kevin MacLeod (incompetech.com), CC BY 4.0. Clips, all Wikimedia Commons:
-
-- CC BY 4.0: Skateboarding-Street-World-Championship-Tokyo-Japan-2023-12-17 04183-04229, 09322-09370 and 09889-09972 (RuinDig/Yuki Uchida)
-- CC BY-SA 4.0: Day of the Town (2017-09-09) - Skateboarding - 0022, 0096 and 0099 (Zelio007); Personas patinando en PARCUR; Kenyan skateboarding (Drewperez1)
-- CC BY 3.0: Shove it (TheContreOfficial); Hippy Flip on arms (BoarderleinTV)
+- Requests 1 and 3, Wikimedia Commons: Skateboarding-Street-World-Championship-Tokyo-Japan-2023-12-17 04183-04229,
+  09322-09370 and 09889-09972 (RuinDig/Yuki Uchida, CC BY 4.0); Day of the Town (2017-09-09) - Skateboarding - 0022,
+  0096 and 0099 (Zelio007, CC BY-SA 4.0); Personas patinando en PARCUR (CC BY-SA 4.0); Kenyan skateboarding
+  (Drewperez1, CC BY-SA 4.0); Shove it (TheContreOfficial, CC BY 3.0); Hippy Flip on arms (BoarderleinTV, CC BY 3.0)
+- Request 2, Wikimedia Commons, CC BY-SA 4.0: Surfing-1012624 and Surfing-1012628, Dingle Peninsula, and Wind
+  Surfing-1025737 (Maoileann); Kite surfing at Viganj 163559 1 (Quahadi); Surfing in Tel Aviv MVI 3675 (Deror Avi);
+  Hermanus Surf (Soaring Heights Imagery); Malibu-Surfrider Beach-First Point (Rybkovich); Surfing contest - oahu
+  hawaii - north shore - oct 2015 (Nesnad). CC0: Body surfing a wave (JaredMcKenzie). Pexels License: people shopping
+  at market, a person riding a motorbike in a city at night, aerial view of modern city skyline at dusk
 
 ## Measuring again
 
-`measure.mjs` applies one measure to any finished film. It needs Node and ffmpeg, and the music is a free download from Incompetech.
-
 ```sh
-node skills/beat-cut/scripts/beats.mjs screen-saver.mp3 --out beats
-node evals/lift.mjs screen-saver.mp3
-node evals/measure.mjs <film folder> --beats beats/screen-saver.json --period 0.499937 --t0 0.25 --lift 115.98
-
-node skills/beat-cut/scripts/beats.mjs movement-proposition.mp3 --out beats
-node evals/lift.mjs movement-proposition.mp3
-node evals/measure.mjs <film folder> --beats beats/movement-proposition.json --period 0.476188 --t0 0.04 --lift 116.21
+node skills/beat-cut/scripts/beats.mjs <song>.mp3 --out beats
+python -I evals/feel.py <film>.mp4 --song <song>.mp3 --beats beats/<song>.json --json feel.json
+node skills/beat-cut/scripts/beats.mjs check <film folder>/film.html --out beats-check
 ```
 
-The waveform grid (`--period`, `--t0`) was made apart from the skill. The period is a constant-tempo fit to librosa's
-beats: 120.015 and 126.001 BPM, where Incompetech lists 120 and 126. The phase is the strongest rise in the waveform
-folded on that period. It was made for the first trial and not changed since. `lift.mjs` finds the second of the
-largest rise of the level over half a second against the half second before it, after the first 20 s of the file:
-115.98 and 116.21 s, which `beats.mjs` 0.2.0 reports as 115.998 and 116.222.
-
-`measure.mjs` also runs the skill's `check` on the film and lists its numbers apart. The other measures: picture cuts from film.html, each confirmed in the render by a jump in ffmpeg's scene score within
-2 frames; shots by section from the sections of `beats.mjs`; black stretches (ffmpeg's `blackdetect`, one frame or
-more) and sound levels from the render. The last row of each table is that `check`, listed apart because the skill works against it.
+`feel.py` needs ffmpeg, numpy, scipy and librosa. `measure.mjs` and `lift.mjs` are the measures of the 0.2.x trials.
 
 ## Not tried
 
-- Speech under the music, music with no clear beat (`steady` under 0.25), music whose tempo changes, and photo or page shots
-- A person's own footage, other tracks, other agents or models, a request in another language
-- Playing a film in Studio or listening to it: the sound rows are measured, not heard
-- Closing the holes in the first film of request 2 and rendering it again, to show that the black frames go
-- Whether an agent acts on `check`'s GAP and black frame items for holes this small: no run saw them, since 0.2.2 came after the runs
+- Watching or hearing any film: whether the flash and the punches feel right, or too much, is not known
+- Music with no clear drop, speech under the music, photos or pages as shots, a person's own footage
+- Other agents or models, a request in English
+- Whether `punch` suits a calm request (a slow travel film): the brief says to skip it when the person does not want
+  effects, and no run asked for that
+- A second run of any request, so nothing here says how much a run varies

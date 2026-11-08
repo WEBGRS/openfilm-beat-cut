@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+
+The owner watched the 0.2.x trials and could not tell the films were cut to the music: every cut was within a frame of a beat in both arms, but nothing happened on the hits between cuts, and the drop got no more than a cut. Retried on three 卡点 tracks (phonk, EDM, a Chinese viral song), the films of 0.2.2 marked 59 to 77% of the drop's beats with any picture change and held the drop's first shot up to 1.9 s.
+
+- `beats.mjs` measures `accents`: the attack on every beat and half beat (kick, snare, clap) against the strongest, so the shake can go on the hits between beats.
+- `beats.mjs plan <beats.json> --length <s>` picks the stretch of music (whole bars, the lift 2 or 4 bars in) and the shots: a bar each before the lift, the bar into it rushing (2, 1, ½, ½ beats), after it a beat each on a phrase's first bar and 1, 1, 2 beats on the others, one shot to end on. It writes `<name>.plan.json` and prints what to do next.
+- `beats.mjs punch film.html` writes the effects as CSS animation on each clip's own time (OpenFilm 0.3.0's `@keyframes` on clips): a slow push before the lift, a flash on the lift and on each phrase after it, a zoom punch on every drop beat, a shake on strong half-beat hits, one hit on a last shot of a bar or more. The footage is not re-encoded; running it again replaces what it wrote, and a clip's own animation and filter are kept.
+- `check` reports the 卡点 feel: of the drop's beats (the lift to the last bar), how many a cut or a punch marks (want 75%), and how many strong accents; a TO DO and `--strict` when under. Its shape measures leave out the bar that rushes into the lift and count punches as a bar's changes, so a planned film is not told it is the wrong shape.
+- Where no 4 dB step is found, the lift is the first edge where the sections step up (the Chinese song steps from mid to loud by less than that, beat by beat, and had no lift).
+- The measure's run ends with the plan command; the brief says what a 卡点 drop is and walks measure, plan, film, punch, check, render.
+
 ## 0.2.2
 
 - `check` calls two clips that do not meet a GAP from a tenth of a millisecond, where it had called a hole a GAP only from half a frame or with a frame inside it. In the trials of request 2 every black frame (3 in each film) sat at a hole of 0.3 to 5 ms between two clips in film.html, written by rounding `at`: a frame that falls on the hole's end is drawn black. A black frame at a GAP is named as the GAP's, and the TO DO says to start each clip where the one before it ends.

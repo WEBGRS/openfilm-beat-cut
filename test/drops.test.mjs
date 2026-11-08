@@ -1,10 +1,10 @@
 // Climaxes cut a bar before the drop: the tempo, the drop and its beat, and the plan from it
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { measure, pickTempo, plan, withDrop } from '../skills/beat-cut/scripts/beats.mjs';
+import { check, measure, pickTempo, plan, withDrop } from '../skills/beat-cut/scripts/beats.mjs';
 import { grid, wav } from './synth.mjs';
 
 const scratch = mkdtempSync(join(tmpdir(), 'beat-cut-drops-'));
@@ -91,6 +91,27 @@ test('the drop for planning: a lift between beats goes to the nearest beat, the 
   /* on a beat and a bar already: unchanged */
   const on = { ...base, lift: 2.7 };
   assert.equal(withDrop(on), on);
+});
+
+test('check: one bar before the lift is whole phrases enough when the music starts there, not when it has more', async () => {
+  const dir = mkdtempSync(join(scratch, 'phrase-'));
+  mkdirSync(join(dir, 'assets'));
+  /* the drop at 2.25 s, the music from 0.25 s */
+  wav(join(dir, 'assets', 'short.wav'), grid({ bpm: 120, seconds: 20, start: 0.25 }), { seconds: 20, gain: (t) => (t < 2.25 ? 10 ** (-14 / 20) : 1) });
+  /* the drop at 10.25 s, music from 0.25 s */
+  wav(join(dir, 'assets', 'long.wav'), grid({ bpm: 120, seconds: 26, start: 0.25 }), { seconds: 26, gain: (t) => (t < 10.25 ? 10 ** (-14 / 20) : 1) });
+  const film = (name, song, from) => {
+    const pics = Array.from({ length: 6 }, (_, k) => `<img src="assets/p${k}.png#t=0,2" at="${k * 2}">`).join('');
+    writeFileSync(join(dir, `${name}.html`), `<!doctype html><html><body>\n<section>${pics}</section>\n<section><audio src="assets/${song}#t=${from},${from + 12}" at="0"></audio></section>\n</body></html>`);
+    return join(dir, `${name}.html`);
+  };
+  const short = await check(film('short', 'short.wav', 0.25));
+  assert.equal(short.phrases.bars, 1, JSON.stringify(short.phrases));
+  assert.equal(short.phrases.ok, true, JSON.stringify(short.phrases));
+  /* positive control: one bar before the lift though the music has four more before it */
+  const long = await check(film('long', 'long.wav', 8.25));
+  assert.equal(long.phrases.bars, 1, JSON.stringify(long.phrases));
+  assert.equal(long.phrases.ok, false, JSON.stringify(long.phrases));
 });
 
 test('plan: music that starts a bar before the drop rushes into it from the first beat', () => {

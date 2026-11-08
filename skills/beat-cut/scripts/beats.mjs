@@ -1186,6 +1186,8 @@ export async function check(filmFile, o = {}) {
   const tracks = filmTracks(readFileSync(filmFile, 'utf8')).filter((t) => !('hidden' in t.attrs));
   const music = await musicOf(tracks, dir, filmFile, o.music);
   const m = await measured(join(dir, music.file), o.out ?? join(dir, 'beats'));
+  /* the lift as plan and punch use it: on a beat, the bars from it */
+  const md = withDrop(m);
 
   /** @type {{ id: string, track: number, at: number, end: number | undefined, file: string, from: number, speed: number, tag: string, fx: { kind: string, t: number }[] }[]} */
   const pictures = [];
@@ -1282,11 +1284,11 @@ export async function check(filmFile, o = {}) {
   const pace = [];
   /** @type {Map<number, (typeof pace)[number]>} */
   const bySection = new Map();
-  const rushFrom = m.lift == null ? Infinity : m.lift - (m.meter * 60) / m.bpm - half;
+  const rushFrom = md.lift == null ? Infinity : md.lift - (m.meter * 60) / m.bpm - half;
   for (const s of shots) {
     if (!inMusic(s.at) || s.at > music.at + music.length - half) continue;
     /* the bar that rushes into the lift is not the calm before it */
-    if (m.lift != null && toMusic(s.at) >= rushFrom && toMusic(s.at) < m.lift - half) continue;
+    if (md.lift != null && toMusic(s.at) >= rushFrom && toMusic(s.at) < md.lift - half) continue;
     const k = sectionAt(toMusic(s.at));
     if (k < 0) continue;
     const sec = m.sections[k];
@@ -1309,7 +1311,7 @@ export async function check(filmFile, o = {}) {
   const ratio = slow.shots >= 2 && fast.shots >= 2 ? Math.round((slow.mean / fast.mean) * 100) / 100 : null;
   /* a bar's changes are its cuts and punches; the bar that rushes into the lift is left out */
   const punchesAt = pictures.flatMap((p) => p.fx.filter((f) => f.kind !== 'push' && f.t > half).map((f) => toMusic(p.at + f.t)));
-  const perBar = m.loudness.filter((b) => b.start >= used.from - 0.05 && b.end <= used.to + 0.05 && !(m.lift != null && Math.abs(b.end - m.lift) < 0.05))
+  const perBar = m.loudness.filter((b) => b.start >= used.from - 0.05 && b.end <= used.to + 0.05 && !(md.lift != null && Math.abs(b.end - md.lift) < 0.05))
     .map((b) => ({ db: b.db, cuts: shots.filter((x) => { const t = toMusic(x.at); return t >= b.start - half && t < b.end - half; }).length + punchesAt.filter((t) => t >= b.start - half && t < b.end - half).length }));
   const range = perBar.length ? Math.max(...perBar.map((b) => b.db)) - Math.min(...perBar.map((b) => b.db)) : 0;
   const r = perBar.length >= 6 && range >= 6 ? spearman(perBar.map((b) => b.db), perBar.map((b) => b.cuts)) : null;
@@ -1328,13 +1330,13 @@ export async function check(filmFile, o = {}) {
 
   /* what starts at the lift */
   let lift = null;
-  if (m.lift != null) {
-    const film = round(music.at + (m.lift - music.from) / music.speed);
-    if (!inMusic(film)) lift = { music: m.lift, film, inFilm: false, cut: null };
+  if (md.lift != null) {
+    const film = round(music.at + (md.lift - music.from) / music.speed);
+    if (!inMusic(film)) lift = { music: md.lift, film, inFilm: false, cut: null };
     else {
       const near = marks.reduce((/** @type {(typeof marks)[number] | null} */ b, c) => (!b || Math.abs(c.t - film) < Math.abs(b.t - film) ? c : b), null);
       const frames = near ? Math.round((near.t - film) * fps * 10) / 10 : null;
-      lift = { music: m.lift, film, inFilm: true, cut: near ? { t: near.t, frames, starts: near.starts, on: Math.abs(/** @type {number} */ (frames)) <= 1 } : null };
+      lift = { music: md.lift, film, inFilm: true, cut: near ? { t: near.t, frames, starts: near.starts, on: Math.abs(/** @type {number} */ (frames)) <= 1 } : null };
     }
   }
 
@@ -1346,8 +1348,7 @@ export async function check(filmFile, o = {}) {
   const inUse = (/** @type {number} */ x) => x >= used.from - half && x < used.to - half;
   /* the last bar is the ending: a shot may hold there */
   const ending = used.to - (m.meter * 60) / m.bpm - half;
-  const md = withDrop(m);
-  const dropBeats = m.lift == null ? [] : m.beats.filter((b) => inUse(b) && b < ending && roleAt(md, b, b + 60 / m.bpm) === 'drop').map(filmOf);
+  const dropBeats = md.lift == null ? [] : m.beats.filter((b) => inUse(b) && b < ending && roleAt(md, b, b + 60 / m.bpm) === 'drop').map(filmOf);
   const byCut = dropBeats.filter((t) => cutMarks.some((c) => Math.abs(c - t) <= tol));
   const byFx = dropBeats.filter((t) => !byCut.includes(t) && fxMarks.some((c) => Math.abs(c - t) <= tol));
   const strongIn = (m.accents ?? []).filter((a) => a.strength >= STRONG && inUse(a.t) && roleAt(md, a.t, a.t + 60 / m.bpm) === 'drop').map((a) => filmOf(a.t));
@@ -1368,7 +1369,7 @@ export async function check(filmFile, o = {}) {
   const start = { music: round(used.from), frames: fromBar(used.from), track: used.from <= m.sound.start + 0.1 };
   const end = { music: round(used.to), frames: fromBar(used.to), track: used.to >= m.sound.end - 0.1 };
   /* whole phrases (4 bars) between the film's start and the lift */
-  const phraseBars = m.lift != null && m.lift > used.from && m.lift < used.to ? m.bars.filter((b) => b >= used.from - half && b < m.lift - 1e-3).length : null;
+  const phraseBars = md.lift != null && md.lift > used.from && md.lift < used.to ? m.bars.filter((b) => b >= used.from - half && b < md.lift - 1e-3).length : null;
   /* bars the kick and the harmony left a guess, with no lift to set them by, prove nothing */
   const sure = m.barBy === 'told' || m.barBy === 'lift' || m.barSure >= GUESS;
   const phrases = {
@@ -1376,7 +1377,8 @@ export async function check(filmFile, o = {}) {
     start: { ...start, ok: !sure || start.track || start.frames == null || Math.abs(start.frames) <= 1 },
     end: { ...end, ok: !sure || end.track || end.frames == null || Math.abs(end.frames) <= 1 },
     bars: phraseBars,
-    ok: !sure || phraseBars == null || phraseBars % 4 === 0,
+    /* music that starts less than a phrase before the lift has no more to give: all of it is used */
+    ok: !sure || phraseBars == null || phraseBars % 4 === 0 || (phraseBars < 4 && used.from - m.sound.start < (m.meter * 60) / m.bpm),
   };
 
   /* the render of this film, if there is one: the picture's black bars, which look --full does not report */

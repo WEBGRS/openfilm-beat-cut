@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+Tried on the climaxes of nine songs from a Bilibili 卡点 mix, each cut to start about a bar before its drop. 0.3.0 measured three of them wrong, and one film showed it.
+
+- The drop is found from the level and the bass together (a beat's level plus half its bass level), so a drop where the kick and bass come back counts though the whole barely gets louder. Three beats of history are enough, so music cut a bar before its drop has a lift; when the music starts a bar or two before a drop that rises half as much as a bigger one later and holds two bars, that first drop is the lift. 0.3.0 put the lift of "Repeat" at 18.9 s of a 32 s excerpt whose drop is at 2 s, and the film made with it opened with 12 s of slow pushes over the full climax.
+- Under 80 BPM, when the double scores 0.6 as much, the tempo is the double, tracked at the slower pulse (which follows the kick) with the beats between put in. 0.3.0 read the "Umbrella" remix at 62 BPM with no lift.
+- A straight line of beats whose drop falls on its half beat, where the kick is as strong on the half beats as on the beats, moves half a beat; the run says so. In "call me now" 0.3.0's beats sat between the kicks.
+- `plan` and `punch` put the lift on the nearest beat (a pickup or a half-beat lift) and count the bars from it, and `plan` starts the film a single bar before the lift when that is all the music has (0.3.0 started at the lift with no rush).
+
 ## 0.3.0
 
 The owner watched the 0.2.x trials and could not tell the films were cut to the music: every cut was within a frame of a beat in both arms, but nothing happened on the hits between cuts, and the drop got no more than a cut. Retried on three 卡点 tracks (phonk, EDM, a Chinese viral song), the films of 0.2.2 marked 59 to 77% of the drop's beats with any picture change and held the drop's first shot up to 1.9 s.

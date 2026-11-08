@@ -431,7 +431,10 @@ export async function measure(file, o = {}) {
   const peaks = findTempo(ac);
   const chosen = o.bpm ?? pickTempo(peaks);
   const steady = Math.max(0, Math.min(1, peaks[0]?.raw ?? 0));
-  const frames = trackBeats(env.onset, (FPS * 60) / chosen);
+  /* a doubled tempo is tracked at the slower one, which follows the kick, and the beats between put in */
+  const doubled = o.bpm == null && peaks[0] != null && Math.abs(chosen / peaks[0].bpm - 2) < 0.06;
+  let frames = trackBeats(env.onset, (FPS * 60) / (doubled ? peaks[0].bpm : chosen));
+  if (doubled) frames = frames.flatMap((f, k) => (k + 1 < frames.length ? [f, Math.round((f + frames[k + 1]) / 2)] : [f]));
   let beats = frames.map((f) => round((onPeak(env.onset, f) * HOP) / RATE));
   /* the tempo the beats keep, from their spacing */
   const gaps = beats.slice(1).map((b, k) => b - beats[k]).sort((a, b) => a - b);

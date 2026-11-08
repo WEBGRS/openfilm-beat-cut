@@ -4,11 +4,11 @@ An [OpenFilm](https://github.com/openfilm/openfilm) skill: a film that hits with
 Calm shots before the drop, a rush into it, a flash on it, then a cut or a zoom punch on nearly every beat and a shake
 on the big hits. Every cut lands on a beat.
 
-In three trials on OpenFilm 0.3.0 with 卡点 tracks, the drop of each film made with 0.3.0 changed or hit the picture on
-79 to 86% of the music's beats, against 59 to 77% with 0.2.2 and 7 to 65% without the skill. The arm without the skill
-also zoomed on its cuts, and on one request put a white flare over the drop, so the gain is the punch between cuts,
-the flash, the build and rush, and cuts on the kick. Nobody has watched the films; the numbers and frames are in
-[evals](evals/README.md).
+On the climaxes of nine songs from a Bilibili 卡点 mix (OpenFilm 0.3.0), the films made with the skill had a picture
+event on 72 to 94% of the drop's beats; without it, 2 to 29% on seven songs and about the same as the skill on two.
+0.3.0 measured three of the nine wrong (half tempo, beats on the off beat, a drop found 17 s late); 0.4.0 fixes those,
+and on one song two kick measures still disagree on where the beat is. Nobody has watched the films; the numbers and
+frames are in [evals](evals/README.md).
 
 | | | |
 | --- | --- | --- |
@@ -126,7 +126,7 @@ node tools/drift.mjs
 
 OpenFilm 技能：做出卡点的感觉。高潮前镜头放稳，冲进高潮时越切越快，高潮那一下闪白加推镜，之后几乎每一拍都有切镜或推镜冲击，重鼓点上画面抖一下；每个剪辑点都踩在拍子上。
 
-在 OpenFilm 0.3.0 上用三首卡点歌各试了一次：0.3.0 做的片子高潮段 79–86% 的拍子上画面有变化，0.2.2 是 59–77%，不用技能是 7–65%。不用技能的智能体也会在切镜时加缩放，有一次还在高潮处加了白光，所以技能多出来的是切镜之间每拍的冲击、高潮和乐句开头的闪白、铺垫和冲刺的结构，以及切在底鼓上。片子没有人在 Studio 里看过或听过，数字和画面见 [evals](evals/README.md)。
+在一个 B 站卡点合集的九首歌高潮上试过（OpenFilm 0.3.0）：用技能的片子高潮段 72–94% 的拍子上有画面变化；不用技能的七首是 2–29%，另外两首和用技能差不多。0.3.0 有三首测错了（速度测成一半、拍点落在反拍、高潮晚了 17 秒找到），0.4.0 修好了这三处；还有一首歌两种底鼓测法对拍点位置意见不一。片子没有人看过或听过，数字和画面见 [evals](evals/README.md)。
 
 0.3.0 新增：`beats.mjs plan beats/<名字>.json --length 30` 选音乐段落并排好每个镜头（高潮前一小节一个，冲进高潮 2、1、½、½ 拍，之后一两拍一个，最后一小节一个）；`beats.mjs punch film.html` 把慢推、闪白、推镜冲击和抖动写成片段上的 CSS 动画（不重新编码素材，再跑一次会替换之前写的）；`check` 统计高潮段有多少拍落了切镜或冲击（要求 75% 以上）。
 

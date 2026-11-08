@@ -8,7 +8,8 @@ Tried on the climaxes of nine songs from a Bilibili 卡点 mix, each cut to star
 - Under 80 BPM, when the double scores 0.6 as much, the tempo is the double, tracked at the slower pulse (which follows the kick) with the beats between put in. 0.3.0 read the "Umbrella" remix at 62 BPM with no lift.
 - A straight line of beats whose drop falls on its half beat, where the kick is as strong on the half beats as on the beats, moves half a beat; the run says so. In "call me now" 0.3.0's beats sat between the kicks.
 - `plan` and `punch` put the lift on the nearest beat (a pickup or a half-beat lift) and count the bars from it, and `plan` starts the film a single bar before the lift when that is all the music has (0.3.0 started at the lift with no rush).
-- `check` no longer asks for whole phrases before the lift when the music itself starts less than a phrase before it. The 0.4.0 run on "call me now" left that item in its TO DO.
+- `check` no longer asks for whole phrases before the lift when the music itself starts less than a phrase before it. The 0.4.0 run on "call me now" left that item in its TO DO. check also judges the cut at the lift, and the bars before it, at the lift plan uses.
+- Not fixed: on "Repeat" the skill's kick measure (bands under 160 Hz) and a separate one (magnitude under 120 Hz) disagree on whether the beats or the half beats carry the kick.
 
 ## 0.3.0
 

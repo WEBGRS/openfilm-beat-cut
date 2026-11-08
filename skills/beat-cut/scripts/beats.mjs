@@ -67,7 +67,7 @@ function run(/** @type {string} */ cmd, /** @type {string[]} */ args, binary = f
 }
 
 /** The file's sound, one channel at RATE. @returns {Promise<Float32Array>} */
-async function decode(/** @type {string} */ file) {
+export async function decode(/** @type {string} */ file) {
   const out = /** @type {Buffer} */ (await run('ffmpeg', ['-v', 'error', '-i', file, '-vn', '-ac', '1', '-ar', String(RATE), '-f', 'f32le', '-'], true));
   const bytes = new Uint8Array(out.length - (out.length % 4));
   bytes.set(out.subarray(0, bytes.length));
@@ -116,7 +116,7 @@ const LOW = BANDS.filter((b) => b.hz < 160).length;
  * Frame by frame (FPS a second, each centred on its time): the rise in every band (the onset strength), the same in
  * the low bands, the level of each band (dB), and the frame's loudness (RMS dB).
  */
-function envelopes(/** @type {Float32Array} */ pcm) {
+export function envelopes(/** @type {Float32Array} */ pcm) {
   const frames = Math.max(1, Math.ceil(pcm.length / HOP));
   const win = new Float64Array(SIZE).map((_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / SIZE));
   const re = new Float64Array(SIZE), im = new Float64Array(SIZE);
@@ -196,6 +196,17 @@ function findTempo(/** @type {Float64Array} */ ac) {
   return peaks;
 }
 
+/**
+ * The tempo to cut on, of the scored tempos: the best, unless it is under 80 BPM and its double scores at least 0.6
+ * as much; then the double, the pulse a cut follows (a half-time feel is still felt at the double).
+ * @param {{ bpm: number, score: number }[]} peaks
+ */
+export function pickTempo(peaks) {
+  if (!peaks.length) return 120;
+  const top = peaks[0];
+  const double = top.bpm < SLOW ? peaks.find((p) => Math.abs(p.bpm / (2 * top.bpm) - 1) < 0.03 && p.score >= DOUBLE * top.score) : undefined;
+  return (double ?? top).bpm;
+}
 /** The beats, by dynamic programming (Ellis 2007): on strong onsets, a period apart, give or take. */
 function trackBeats(/** @type {Float64Array} */ onset, /** @type {number} */ period, tightness = 800) {
   const n = onset.length;
@@ -286,6 +297,15 @@ const GUESS = 0.2;
 const FOLLOWS = 0.3;
 /** Of a drop's beats, the share a cut or a punch should mark. */
 const MARKED = 0.75;
+/** A tempo under SLOW gives way to its double when the double scores DOUBLE as much or more. */
+const SLOW = 80;
+const DOUBLE = 0.6;
+/** The lift: a beat's level plus BASS times its bass level steps up by RISE dB (medians of a bar either side). */
+const BASS = 0.5;
+const RISE = 4.5;
+const EARLIER = 0.5;
+/** A line whose drop is on its half beat moves half a beat when the kick on the half beats is this much of the kick on the beats. */
+const OFFBEAT = 0.8;
 
 /**
  * Whether the music keeps one tempo, as a straight line of beats (a period and a first beat) that its attacks sit on
@@ -375,7 +395,7 @@ function barStart(/** @type {number[]} */ beats, /** @type {ReturnType<typeof en
  * The second the level steps up within `reach` of `at`: the rise of an 80 ms stretch over the 80 ms before it,
  * greatest; an attack is that step, which a held or slow change is not.
  */
-function stepUp(/** @type {Float32Array} */ pcm, /** @type {number} */ at, /** @type {number} */ reach) {
+function stepUp(/** @type {Float32Array} */ pcm, /** @type {number} */ at, /** @type {number} */ reach, keep = false) {
   const win = Math.round(0.08 * RATE);
   const level = (/** @type {number} */ a) => {
     let s = 0;
@@ -389,6 +409,8 @@ function stepUp(/** @type {Float32Array} */ pcm, /** @type {number} */ at, /** @
     rises.push({ t, up: level(a) - level(a - win) });
   }
   const best = Math.max(...rises.map((r) => r.up));
+  /* the beat itself, when it steps up nearly as much (a drop on its beat) */
+  if (keep) { const a = Math.round(at * RATE); for (const d of [0, 0.01, 0.02, 0.03]) if (level(a + Math.round(d * RATE)) - level(a + Math.round(d * RATE) - win) >= best - 1.5) return at; }
   return /** @type {number} */ (rises.findLast((r) => r.up >= best - 0.5)?.t);
 }
 const median = (/** @type {number[]} */ v) => { const s = [...v].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
@@ -407,7 +429,7 @@ export async function measure(file, o = {}) {
   const env = envelopes(pcm);
   const ac = tempoScores(env.onset);
   const peaks = findTempo(ac);
-  const chosen = o.bpm ?? peaks[0]?.bpm ?? 120;
+  const chosen = o.bpm ?? pickTempo(peaks);
   const steady = Math.max(0, Math.min(1, peaks[0]?.raw ?? 0));
   const frames = trackBeats(env.onset, (FPS * 60) / chosen);
   let beats = frames.map((f) => round((onPeak(env.onset, f) * HOP) / RATE));
@@ -433,24 +455,41 @@ export async function measure(file, o = {}) {
       bpm = Math.round(/** @type {number} */ (grid.bpm) * 10) / 10;
     } else grid = { regular: false, share: Math.round(line.share * 100) / 100 };
   }
-  /* the same rise beat by beat, a bar's worth either side: found without the bars, so it can say where one starts */
-  const beatDb = beats.map((b, k) => {
+  /* the same rise beat by beat, a bar's worth either side: found without the bars, so it can say where one starts.
+     A beat's level and half its bass level: a drop where the kick and bass come back steps up there though the whole
+     barely does */
+  const beatLevel = beats.map((b, k) => {
     const a = Math.floor(b * RATE), z = Math.min(pcm.length, Math.floor((beats[k + 1] ?? b + 60 / bpm) * RATE));
     let s = 0;
     for (let i = a; i < z; i++) s += pcm[i] * pcm[i];
     return 10 * Math.log10(s / Math.max(1, z - a) + 1e-12);
   });
-  /* medians, so a fill on the beat before the lift does not take it */
-  const ups = beatDb.map((_, k) => (k >= meter && k + meter <= beatDb.length ? median(beatDb.slice(k, k + meter)) - median(beatDb.slice(k - meter, k)) : -Infinity));
+  const beatBass = beats.map((b, k) => {
+    const a = Math.floor(b * FPS), z = Math.min(env.level.length, Math.max(a + 1, Math.floor((beats[k + 1] ?? b + 60 / bpm) * FPS)));
+    let s = 0, n = 0;
+    for (let f = a; f < z; f++) for (let j = 0; j < LOW; j++) { s += 10 ** (env.level[f][j] / 10); n++; }
+    return 10 * Math.log10(s / Math.max(1, n) + 1e-12);
+  });
+  const beatDb = beatLevel.map((l, k) => l + BASS * beatBass[k]);
+  /* a beat's rise: the bar it starts over the bar before (medians, so a fill does not take it); three beats of history
+     are enough, as a song cut a bar before its drop has no more. `held`: the two bars it starts over the bar before */
+  const before = (/** @type {number} */ k) => median(beatDb.slice(k - Math.min(meter, k), k));
+  const ups = beatDb.map((_, k) => (Math.min(meter, k) >= 3 && k + meter <= beatDb.length ? median(beatDb.slice(k, k + meter)) - before(k) : -Infinity));
+  const held = (/** @type {number} */ k) => median(beatDb.slice(k, k + 2 * meter)) - before(k);
   /** @type {number | null} */
   let near = null;
   const most = ups.reduce((b, u, k) => (u > ups[b] ? k : b), 0);
-  if (ups[most] > 4) {
-    /* of the beats that rise about as much, the first one with the biggest jump from the four before it (a fill among them left out) */
-    const jump = (/** @type {number} */ k) => beatDb[k] - median(beatDb.slice(Math.max(0, k - meter), k));
+  if (ups[most] > RISE) {
+    /* of the beats that rise about as much, the one with the biggest jump from the beat before it */
+    const jump = (/** @type {number} */ k) => beatDb[k] - (beatDb[k - 1] ?? beatDb[k]);
     const rising = ups.map((u, k) => k).filter((k) => ups[k] >= ups[most] - 2);
     const biggest = Math.max(...rising.map(jump));
-    near = beats[/** @type {number} */ (rising.find((k) => jump(k) >= biggest - 0.5))];
+    let at = /** @type {number} */ (rising.find((k) => jump(k) >= biggest - 0.5));
+    /* music cut to start a bar or two before a drop: that drop, when it rises EARLIER as much, holds two bars and is not the way up to a bigger step, though a bigger one comes later */
+    const first = ups.findIndex((u, k) => k <= 2 * meter && k < at - 2 * meter && u > RISE && u >= EARLIER * ups[most] && held(k) > RISE && !ups.slice(k + 1, k + 1 + 2 * meter).some((v) => v > u));
+    /* and of the bar from it, the beat with the biggest jump */
+    if (first >= 0) at = [0, 1, 2, 3].map((d) => first + d).filter((k) => ups[k] >= ups[first] - 2).reduce((b, k) => (jump(k) > jump(b) ? k : b), first);
+    near = beats[at];
   }
   /* the second the level steps up, within a beat of that: on a beat or a half beat when it is within a frame of one */
   /** @type {number | null} */
@@ -458,11 +497,22 @@ export async function measure(file, o = {}) {
   /** @type {number | null} */
   let liftBeat = null;
   if (near != null) {
-    const found = stepUp(pcm, near, 60 / bpm);
+    const found = stepUp(pcm, near, 0.55 * 60 / bpm, true);
     const marks = beats.flatMap((b, k) => [b, ...(beats[k + 1] != null ? [(b + beats[k + 1]) / 2] : [])]);
     const closest = marks.reduce((best, t) => (Math.abs(t - found) < Math.abs(best - found) ? t : best), marks[0]);
     liftAt = round(Math.abs(closest - found) <= 1 / 30 ? closest : found);
     liftBeat = beats.find((b) => Math.abs(b - /** @type {number} */ (liftAt)) <= 1 / 30) ?? null;
+    /* a drop on a straight line's half beat, where the kick is as strong on the half beats as on the beats: the line
+       followed the off beat, and moves half a beat. Where the kick says the beats are right, the lift stays on the half beat */
+    if (grid?.regular && liftBeat == null && Math.abs(closest - liftAt) < 1e-3 && !o.bar) {
+      const p = 60 / bpm, low = blur(env.low, 1.2);
+      const kickOn = (/** @type {number[]} */ ts) => ts.reduce((s, t) => s + valueAt(low, t * FPS), 0) / (ts.length || 1);
+      if (kickOn(beats.map((b) => b + p / 2)) >= OFFBEAT * kickOn(beats)) {
+        beats = [...(beats[0] - p / 2 >= 0 ? [round(beats[0] - p / 2)] : []), ...beats.map((b) => round(b + p / 2))].filter((b) => b <= duration);
+        grid.shifted = true;
+        liftBeat = beats.find((b) => Math.abs(b - /** @type {number} */ (liftAt)) <= 1 / 30) ?? null;
+      }
+    }
   }
   const known = o.bar != null && beats.length ? beats.reduce((best, b, k) => (Math.abs(b - /** @type {number} */ (o.bar)) < Math.abs(beats[best] - /** @type {number} */ (o.bar)) ? k : best), 0) : -1;
   const barAt = grid?.regular ? beats.map((b) => Math.round((b * RATE) / HOP)) : frames;
@@ -834,6 +884,21 @@ function beatTime(/** @type {Measure} */ m, /** @type {number} */ k) {
   return round(at(i) + (at(i + 1) - at(i)) * f);
 }
 
+/**
+ * The measure with its lift on a beat, for planning and punching: a lift on a half beat or between beats (a pickup, or
+ * a line the kick kept) goes to the nearest beat, the later one when they are a frame from even, and the bars count
+ * from it.
+ */
+export function withDrop(/** @type {Measure} */ m) {
+  if (m.lift == null || !m.beats.length) return m;
+  const lift = m.lift;
+  const near = m.beats.reduce((b, x) => (Math.abs(x - lift) < Math.abs(b - lift) - 1 / 30 || (Math.abs(Math.abs(x - lift) - Math.abs(b - lift)) <= 1 / 30 && x > b) ? x : b), m.beats[0]);
+  const drop = Math.abs(near - lift) <= 1 / 60 ? lift : near;
+  /* a drop starts a bar: bars that do not start on it are counted from it */
+  if (m.bars.some((b) => Math.abs(b - drop) <= 1 / 60)) return drop === lift ? m : { ...m, lift: drop };
+  const k = m.beats.indexOf(near);
+  return { ...m, lift: drop, bars: m.beats.filter((_, i) => (((i - k) % m.meter) + m.meter) % m.meter === 0) };
+}
 /** The index of the beat nearest to second t. */
 const beatIndex = (/** @type {Measure} */ m, /** @type {number} */ t) => m.beats.reduce((b, x, k) => (Math.abs(x - t) < Math.abs(m.beats[b] - t) ? k : b), 0);
 
@@ -885,6 +950,7 @@ export function fxFor(/** @type {Measure} */ m, /** @type {number} */ start, /**
  * @param {Measure} m @param {{ length?: number, from?: number, to?: number }} [o]
  */
 export function plan(m, o = {}) {
+  m = withDrop(m);
   const beat = 60 / m.bpm, meter = m.meter, barLen = beat * meter, eps = 1 / 60;
   const bars = m.bars.length ? m.bars : m.beats.filter((_, k) => k % meter === 0);
   const length = o.length ?? 30;
@@ -893,8 +959,9 @@ export function plan(m, o = {}) {
   let from = o.from;
   if (from == null) {
     const li = m.lift == null ? 0 : bars.indexOf(nearestBar(m.lift));
-    let lead = 4 * barLen <= 0.5 * length ? 4 : 2;
-    while (lead > 0 && (li - lead < 0 || bars[li - lead] < (m.sound?.start ?? 0) - eps)) lead -= 2;
+    /* 4 bars, else 2, else the one bar into it when the music starts a bar before the lift */
+    const fits = (/** @type {number} */ l) => li - l >= 0 && bars[li - l] >= (m.sound?.start ?? 0) - 0.25;
+    const lead = [4, 2, 1, 0].filter((l) => l <= (4 * barLen <= 0.5 * length ? 4 : 2)).find(fits) ?? 0;
     from = bars[Math.max(0, li - lead)];
   }
   let to = o.to;
@@ -1046,7 +1113,7 @@ export async function punch(filmFile, o = {}) {
   let html = readFileSync(filmFile, 'utf8');
   const tracks = filmTracks(html).filter((t) => !('hidden' in t.attrs));
   const music = await musicOf(tracks, dir, filmFile, o.music);
-  const m = await measured(join(dir, music.file), o.out ?? join(dir, 'beats'));
+  const m = withDrop(await measured(join(dir, music.file), o.out ?? join(dir, 'beats')));
   const toMusic = (/** @type {number} */ t) => music.from + (t - music.at) * music.speed;
   const tags = clipTags(html);
   const counts = new Map();
@@ -1276,12 +1343,13 @@ export async function check(filmFile, o = {}) {
   const inUse = (/** @type {number} */ x) => x >= used.from - half && x < used.to - half;
   /* the last bar is the ending: a shot may hold there */
   const ending = used.to - (m.meter * 60) / m.bpm - half;
-  const dropBeats = m.lift == null ? [] : m.beats.filter((b) => inUse(b) && b < ending && roleAt(m, b, b + 60 / m.bpm) === 'drop').map(filmOf);
+  const md = withDrop(m);
+  const dropBeats = m.lift == null ? [] : m.beats.filter((b) => inUse(b) && b < ending && roleAt(md, b, b + 60 / m.bpm) === 'drop').map(filmOf);
   const byCut = dropBeats.filter((t) => cutMarks.some((c) => Math.abs(c - t) <= tol));
   const byFx = dropBeats.filter((t) => !byCut.includes(t) && fxMarks.some((c) => Math.abs(c - t) <= tol));
-  const strongIn = (m.accents ?? []).filter((a) => a.strength >= STRONG && inUse(a.t) && roleAt(m, a.t, a.t + 60 / m.bpm) === 'drop').map((a) => filmOf(a.t));
+  const strongIn = (m.accents ?? []).filter((a) => a.strength >= STRONG && inUse(a.t) && roleAt(md, a.t, a.t + 60 / m.bpm) === 'drop').map((a) => filmOf(a.t));
   const met = strongIn.filter((t) => cutMarks.concat(fxMarks).some((c) => Math.abs(c - t) <= tol));
-  const calmBeats = m.beats.filter((b) => inUse(b) && ['build', 'calm'].includes(roleAt(m, b, b + 60 / m.bpm))).map(filmOf);
+  const calmBeats = m.beats.filter((b) => inUse(b) && ['build', 'calm'].includes(roleAt(md, b, b + 60 / m.bpm))).map(filmOf);
   const calmCuts = calmBeats.length ? cutMarks.filter((c) => c >= calmBeats[0] - tol && c <= /** @type {number} */ (calmBeats.at(-1)) + tol).length : 0;
   const share = dropBeats.length ? Math.round(((byCut.length + byFx.length) / dropBeats.length) * 100) / 100 : null;
   const feel = {
@@ -1490,7 +1558,8 @@ export function gridLine(m, page) {
   if (!g) return 'too few beats to say whether the tempo is constant';
   if (!g.regular) return `the tempo is not constant (${Math.round(g.share * 100)}% of the music sits on one line of beats): the beats follow it and can be off in quiet parts; listen at ${page} before a cut that matters`;
   const moved = g.moved ? `; the tracker had ${g.moved} beats off that line, up to ${g.worst} frames at 30 fps between ${g.between?.[0]} and ${g.between?.[1]} s, and they are put on it` : '';
-  return `beats: a straight line at ${g.bpm} BPM${moved}`;
+  const shifted = g.shifted ? '; the line had followed the off beat (the drop fell on its half beat and the kick is as strong there), so it is moved half a beat' : '';
+  return `beats: a straight line at ${g.bpm} BPM${moved}${shifted}`;
 }
 
 async function main(/** @type {string[]} */ argv) {

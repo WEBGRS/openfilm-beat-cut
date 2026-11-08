@@ -1,5 +1,5 @@
 {
-  "version": "0.2.2",
+  "version": "0.3.0",
   "repository": "https://github.com/WEBGRS/openfilm-beat-cut/tree/main/skills/beat-cut",
   "kind": "workflow",
   "order": 25,
@@ -20,17 +20,17 @@
     "es": "Montaje al ritmo"
   },
   "summary": {
-    "en": "A film cut to its music: every change on a beat, longer shots in the quiet parts, a cut on the second the music lifts.",
-    "zh-CN": "跟着音乐剪：每次换画面都踩在拍子上，安静段镜头更长，音乐起来的那一秒正好换镜头。",
-    "ja": "音楽に合わせて編集。画面の切り替えはすべて拍に、静かな部分はショットを長めに、曲が盛り上がる瞬間にカットを入れます。",
-    "ko": "음악에 맞춰 편집합니다. 화면 전환은 모두 박자에, 조용한 부분은 장면을 길게, 음악이 올라가는 순간에 컷을 넣습니다.",
-    "es": "Una película montada a su música: cada cambio en un tiempo, planos más largos en las partes suaves y un corte en el segundo en que la música sube."
+    "en": "A film that hits with its music: calm shots before the drop, a flash on it, then a cut or a zoom punch on nearly every beat.",
+    "zh-CN": "跟着音乐打点：高潮前镜头放稳，高潮那一下闪白，之后几乎每一拍都有切镜或推镜冲击。",
+    "ja": "音楽と一緒に打つ編集。サビ前は落ち着いたショット、サビの頭でフラッシュ、その後はほぼ毎拍カットかズームの衝撃。",
+    "ko": "음악과 함께 치는 편집. 드롭 전에는 차분한 장면, 드롭에서 플래시, 그 뒤로는 거의 매 박자에 컷이나 줌 펀치.",
+    "es": "Una película que golpea con su música: planos tranquilos antes del drop, un destello en él y luego un corte o un golpe de zoom en casi cada tiempo."
   },
   "details": {
-    "en": "Best for: montages, travel and event highlights.\nWhat it does: measures the music first (tempo, a straight line of beats, bars, the hits that stand out, quiet and loud parts, where it lifts), cuts your shots on those marks, and checks the film before handing it over: every cut in frames against the nearest beat, half beat or hit, shots longer in the quiet parts than in the loud, the lift, where the film starts and ends in the music, and black bars in the picture.",
-    "zh-CN": "适合：混剪、旅行和活动集锦。\n它会：先测音乐（速度、一条笔直的拍点线、小节、突出的重音、安静和热闹的段落、音乐起来的位置），再把你的镜头剪在这些点上；交付前检查成片：每个剪辑点离最近的拍点、半拍或重音差几帧，安静段的镜头是否比热闹段更长，高潮点，成片从音乐的哪里开始、哪里结束，以及画面里的黑边。",
-    "ja": "こんなときに：モンタージュ、旅行やイベントのハイライト。\nすること：まず音楽を測り（テンポ、一直線の拍、小節の頭、目立つアクセント、静かな部分と盛り上がる部分、曲が上がる位置）、そこにショットを合わせて切ります。渡す前に作品を点検します：すべてのカットが最寄りの拍・半拍・アクセントから何フレームずれているか、静かな部分のショットが盛り上がる部分より長いか、盛り上がりの位置、曲のどこから始まりどこで終わるか、映像の中の黒い帯。",
-    "ko": "이럴 때: 몽타주, 여행·행사 하이라이트.\n하는 일: 먼저 음악을 측정하고(템포, 일직선의 박, 마디 첫 박, 두드러진 악센트, 조용한 부분과 큰 부분, 음악이 올라가는 위치), 그 지점에 장면을 맞춰 자릅니다. 넘기기 전에 영상을 점검합니다: 모든 컷이 가장 가까운 박·반 박·악센트에서 몇 프레임 떨어져 있는지, 조용한 부분의 장면이 큰 부분보다 긴지, 음악이 올라가는 곳, 음악의 어디서 시작해 어디서 끝나는지, 화면 속 검은 띠.",
-    "es": "Ideal para: montajes, resúmenes de viajes y eventos.\nQué hace: primero mide la música (tempo, una línea recta de tiempos, compases, los golpes que destacan, partes suaves y fuertes, dónde sube), corta tus planos en esas marcas y, antes de entregar, revisa la película: cada corte en fotogramas frente al tiempo, medio tiempo o golpe más cercano, planos más largos en las partes suaves que en las fuertes, el momento en que sube, dónde empieza y termina en la música, y las franjas negras dentro de la imagen."
+    "en": "Best for: 卡点 edits, montages, sport, travel and event highlights.\nWhat it does: measures the music first (tempo, a straight line of beats, bars, the kick and snare accents, quiet and loud parts, where it lifts), plans the shots on it (a bar each before the lift, a rush into it, one or two beats each after it), writes the zoom punches, flashes and shakes as CSS on your clips without re-encoding them, and checks the film before handing it over: every cut in frames, the share of the drop's beats a cut or a punch marks, shots longer before the lift than after, where the film starts and ends in the music, and black bars or black frames in the picture.",
+    "zh-CN": "适合：卡点视频、混剪、运动、旅行和活动集锦。\n它会：先测音乐（速度、一条笔直的拍点线、小节、底鼓和军鼓的重音、安静和热闹的段落、音乐起来的位置），按音乐排镜头（高潮前一小节一个镜头，冲进高潮，之后一两拍一个镜头），把推镜冲击、闪白和抖动作为 CSS 写到你的片段上，不重新编码素材；交付前检查成片：每个剪辑点差几帧，高潮段有多少拍落了切镜或冲击，高潮前的镜头是否比之后长，成片从音乐的哪里开始、哪里结束，以及画面里的黑边和黑帧。",
+    "ja": "こんなときに：卡点（ビート同期）動画、モンタージュ、スポーツ・旅行・イベントのハイライト。\nすること：まず音楽を測り（テンポ、一直線の拍、小節、キックとスネアのアクセント、静かな部分と盛り上がる部分、曲が上がる位置）、それに沿ってショットを組み（上がる前は1小節に1ショット、そこへ駆け込み、その後は1〜2拍に1ショット）、ズームの衝撃・フラッシュ・揺れを素材を再エンコードせずに CSS で書き込みます。渡す前に作品を点検します：すべてのカットのフレーム誤差、サビの拍のうちカットか衝撃が入った割合、上がる前のショットが後より長いか、曲のどこから始まりどこで終わるか、映像の中の黒い帯や黒いフレーム。",
+    "ko": "이럴 때: 卡点(비트 싱크) 영상, 몽타주, 스포츠·여행·행사 하이라이트.\n하는 일: 먼저 음악을 측정하고(템포, 일직선의 박, 마디, 킥과 스네어 악센트, 조용한 부분과 큰 부분, 음악이 올라가는 위치), 그에 맞춰 장면을 배치하고(올라가기 전에는 한 마디에 한 장면, 그곳으로 몰아치고, 그 뒤로는 한두 박에 한 장면), 줌 펀치·플래시·흔들림을 영상을 다시 인코딩하지 않고 CSS로 씁니다. 넘기기 전에 영상을 점검합니다: 모든 컷의 프레임 오차, 드롭의 박 중 컷이나 펀치가 들어간 비율, 올라가기 전 장면이 뒤보다 긴지, 음악의 어디서 시작해 어디서 끝나는지, 화면 속 검은 띠와 검은 프레임.",
+    "es": "Ideal para: edición 卡点 al ritmo, montajes, resúmenes de deporte, viajes y eventos.\nQué hace: primero mide la música (tempo, una línea recta de tiempos, compases, los acentos de bombo y caja, partes suaves y fuertes, dónde sube), planifica los planos sobre ella (un compás cada uno antes de la subida, una carrera hacia ella, uno o dos tiempos cada uno después), escribe los golpes de zoom, destellos y sacudidas como CSS sobre tus clips sin recodificarlos y, antes de entregar, revisa la película: cada corte en fotogramas, la parte de los tiempos del drop que marca un corte o un golpe, planos más largos antes de la subida que después, dónde empieza y termina en la música, y franjas o fotogramas negros en la imagen."
   }
 }

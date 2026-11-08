@@ -166,6 +166,10 @@ test('check: the film follows the music\'s quiet and loud in numbers; shots all 
   assert.equal(out.status, 1, out.stdout);
   assert.match(out.stdout, /shape: shots in the quiet and mid parts average 2\.00 s, in the loud parts 2\.00 s \(1x; want 1\.5x or more\)/);
   assert.match(out.stdout.trim().split('\n').slice(-6).join('\n'), /TO DO \(\d+\):[\s\S]*quiet parts' shots are 1x as long/);
+  /* a burst of 2-beat shots after the lift marks half its beats: --strict wants the punches on the others */
+  const unpunched = spawnSync(process.execPath, [SCRIPT, 'check', 'follows.html', '--strict'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(unpunched.status, 1, unpunched.stdout);
+  assert.equal(spawnSync(process.execPath, [SCRIPT, 'punch', 'follows.html'], { cwd: dir, encoding: 'utf8' }).status, 0);
   const ok = spawnSync(process.execPath, [SCRIPT, 'check', 'follows.html', '--strict'], { cwd: dir, encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stdout);
 });

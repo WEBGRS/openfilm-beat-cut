@@ -7,6 +7,10 @@
  *       writes <out>/<name>.json and <name>.html (out: ./beats): the tempo, every beat, the bars' first beats, the
  *       hits that stand out, how loud each stretch is and where the music lifts. --bpm sets the tempo and --bar a
  *       second that is a bar's first beat, when they are known (from the music's source, or by listening)
+ *   node beats.mjs plan <beats.json> [--length <film s>] [--from <music s>] [--to <music s>] [--json]
+ *       a 卡点 plan, written to <beats>.plan.json: the stretch of music and the shots on it, each with what `punch` adds
+ *   node beats.mjs punch [film.html] [--music <clip id or file>] [--dry]
+ *       zoom punches, flashes, shakes and slow pushes by the music under each clip, as CSS animation in film.html
  *   node beats.mjs snap <beats.json> <seconds…> [--to beat|half|bar|hit]
  *       the nearest beat (half beat, bar, hit) to each music second
  *   node beats.mjs check [film.html] [--music <clip id or file>] [--fps 30] [--out <dir>] [--json] [--strict]
@@ -21,7 +25,7 @@
  *       not follow the music, black bars or a black frame inside the film
  *
  * The measure, format "openfilm-beats/1", every time in the music file's own seconds:
- *   { format, file, duration, bpm, meter, barSure, barBy, steady, tempos: [{ bpm, score }], grid, beats, bars, hits: [{ t, strength, onBeat }],
+ *   { format, file, duration, bpm, meter, barSure, barBy, steady, tempos: [{ bpm, score }], grid, beats, bars, hits: [{ t, strength, onBeat }], accents: [{ t, half, strength }],
  *     sound: { start, end }, loudness: [{ start, end, db }], sections: [{ start, end, level }], lift, liftBeat }
  * `grid` says whether the music keeps one tempo ({ regular: true, bpm, share, moved, worst, between }): then `beats` is
  * the straight line its attacks sit on, and `moved` beats the tracker had put off it (by up to `worst` frames at 30 fps,
@@ -280,6 +284,8 @@ const SLOWER = 1.5;
 /** Bars from the kick and the harmony are a guess under this sure. */
 const GUESS = 0.2;
 const FOLLOWS = 0.3;
+/** Of a drop's beats, the share a cut or a punch should mark. */
+const MARKED = 0.75;
 
 /**
  * Whether the music keeps one tempo, as a straight line of beats (a period and a first beat) that its attacks sit on
@@ -488,6 +494,9 @@ export async function measure(file, o = {}) {
     return { t, strength: Math.round((env.onset[f] / loudest) * 100) / 100, onBeat: beats.some((b) => Math.abs(b - t) <= 0.05) };
   });
 
+  /* accents: the attack on every beat and half beat (kick, snare, clap), against the strongest such attacks */
+  const accents = accentsOf(env, beats);
+
   /* where there is sound at all: 40 dB under the loudest frame */
   const peak = Math.max(...env.rms);
   const heard = [...env.rms.keys()].filter((f) => env.rms[f] > peak - 40);
@@ -512,8 +521,10 @@ export async function measure(file, o = {}) {
     const up = loudness[k].db - (loudness[k - 1].db + loudness[k - 2].db) / 2;
     if (up > rise) { rise = up; lift = loudness[k].start; }
   }
-  /* bars that start a beat off the lift put the edge of the quiet and the loud there: the edge is the lift */
   const order = ['quiet', 'mid', 'loud'];
+  /* no step of 4 dB: the first edge where the sections step up is the lift */
+  for (let k = 0; lift == null && k + 1 < sections.length; k++) if (order.indexOf(sections[k + 1].level) > order.indexOf(sections[k].level)) lift = sections[k + 1].start;
+  /* bars that start a beat off the lift put the edge of the quiet and the loud there: the edge is the lift */
   for (let k = 0; liftAt != null && k + 1 < sections.length; k++) {
     const edge = sections[k].end;
     if (Math.abs(edge - liftAt) <= (meter * 60) / bpm && Math.abs(edge - liftAt) > 1e-3 && order.indexOf(sections[k + 1].level) > order.indexOf(sections[k].level)) {
@@ -534,12 +545,37 @@ export async function measure(file, o = {}) {
     beats,
     bars,
     hits,
+    accents,
     sound,
     loudness,
     sections,
     lift,
     liftBeat,
   };
+}
+
+/** Accents kept: as strong as this against the strongest beats' and half beats' attacks. */
+const ACCENT = 0.4;
+/** A strong accent: a hit a 卡点 drop marks with a cut or a punch. */
+export const STRONG = 0.7;
+
+/**
+ * The attack on each beat and half beat: the rise in all bands plus the rise in the low ones, the most within 25 ms of
+ * the mark, against the 95th percentile of those attacks; the marks at ACCENT or more, `half` when between two beats.
+ * @param {{ onset: Float64Array, low: Float64Array }} env @param {number[]} beats
+ */
+export function accentsOf(env, beats) {
+  const reach = Math.round(FPS * 0.025);
+  const marks = beats.flatMap((b, k) => [{ t: b, half: false }, ...(k + 1 < beats.length ? [{ t: round((b + beats[k + 1]) / 2), half: true }] : [])]);
+  const attack = marks.map(({ t }) => {
+    const f = Math.round((t * RATE) / HOP);
+    let top = 0;
+    for (let g = Math.max(0, f - reach); g <= Math.min(env.onset.length - 1, f + reach); g++) top = Math.max(top, env.onset[g] + env.low[g]);
+    return top;
+  });
+  const sorted = [...attack].sort((a, b) => a - b);
+  const ref = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] || 1;
+  return marks.map((mk, k) => ({ t: mk.t, half: mk.half, strength: Math.min(1, Math.round((attack[k] / ref) * 100) / 100) })).filter((a) => a.strength >= ACCENT);
 }
 
 const levelOf = (/** @type {number} */ db) => (db > -4 ? 'loud' : db > -10 ? 'mid' : 'quiet');
@@ -701,7 +737,17 @@ function clipOf(/** @type {{ tag: string, attrs: Record<string, string> }} */ c)
     to,
     at: Number(c.attrs.at) || 0,
     speed: Number(c.attrs.speed) || 1,
+    fx: fxRead(c.attrs['data-beat-fx'] ?? ''),
   };
+}
+
+/** The effects `punch` wrote on a clip: `punch 0 flash 0 shake 0.75`, clip seconds. */
+function fxRead(/** @type {string} */ text) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  /** @type {{ kind: string, t: number }[]} */
+  const out = [];
+  for (let k = 0; k + 1 < words.length; k += 2) if (Number.isFinite(Number(words[k + 1]))) out.push({ kind: words[k], t: Number(words[k + 1]) });
+  return out;
 }
 
 /** @type {Map<string, Promise<number | undefined>>} */
@@ -757,6 +803,303 @@ async function write(/** @type {string} */ file, /** @type {string} */ out, o = 
   return m;
 }
 
+/** The film's music: the sound clip named, else the longest with no words beside it (a .vtt is a voice). */
+async function musicOf(/** @type {ReturnType<typeof filmTracks>} */ tracks, /** @type {string} */ dir, /** @type {string} */ filmFile, /** @type {string | undefined} */ name) {
+  const sounds = tracks.flatMap((t) => t.clips.filter((c) => c.tag === 'audio').map(clipOf));
+  const named = name && sounds.find((s) => s.id === name || s.file === name || basename(s.file) === name);
+  if (name && !named) throw new Error(`no sound clip "${name}" in ${filmFile}`);
+  const candidates = named ? [named] : sounds.filter((s) => !existsSync(join(dir, s.file.replace(/\.[^./]+$/, '.vtt'))));
+  /** @type {(ReturnType<typeof clipOf> & { length: number }) | undefined} */
+  let music;
+  for (const s of candidates) {
+    const length = await lengthOf(s, dir);
+    if (length != null && (!music || length > music.length)) music = { ...s, length };
+  }
+  if (!music) throw new Error(`no music in ${filmFile}: a sound clip with no .vtt beside it, or --music <clip id>`);
+  return music;
+}
+
+/* ---------- 卡点: the plan and the punches ---------- */
+
+/** @typedef {{ bpm: number, meter: number, beats: number[], bars: number[], accents?: { t: number, half: boolean, strength: number }[], sections: { start: number, end: number, level: string }[], lift: number | null, sound?: { start: number, end: number }, duration: number }} Measure */
+
+/** How hard each effect hits: the zoom of a punch, the brightness a flash adds, the shake's reach (vw of the stage). */
+export const FX = { punch: 0.12, soft: 0.06, push: 0.06, flash: 1.0, shake: 2.2 };
+
+/** The second beat k (fractional: k + 0.5 is a half beat) falls on, past the last beat by the tempo. */
+function beatTime(/** @type {Measure} */ m, /** @type {number} */ k) {
+  const p = 60 / m.bpm, n = m.beats.length;
+  const at = (/** @type {number} */ i) => (i < 0 ? m.beats[0] + i * p : i >= n ? m.beats[n - 1] + (i - n + 1) * p : m.beats[i]);
+  const i = Math.floor(k), f = k - i;
+  return round(at(i) + (at(i + 1) - at(i)) * f);
+}
+
+/** The index of the beat nearest to second t. */
+const beatIndex = (/** @type {Measure} */ m, /** @type {number} */ t) => m.beats.reduce((b, x, k) => (Math.abs(x - t) < Math.abs(m.beats[b] - t) ? k : b), 0);
+
+/**
+ * What a stretch of the music asks of the picture: `build` before the lift, `rush` (the bar into the lift, a beat or
+ * less a shot), `drop` (the lift and loud parts after it), `mid`, `calm` (quiet parts after it).
+ */
+export function roleAt(/** @type {Measure} */ m, /** @type {number} */ start, /** @type {number} */ end) {
+  const beat = 60 / m.bpm, eps = 1 / 60;
+  if (m.lift != null && start < m.lift - eps) return end - start <= 1.25 * beat && m.lift - start <= 1.1 * m.meter * beat ? 'rush' : 'build';
+  const sec = m.sections.find((s) => start >= s.start - eps && start < s.end - eps);
+  const fromLift = m.lift != null && m.sections.find((s) => m.lift != null && m.lift >= s.start - eps && m.lift < s.end - eps);
+  if (sec && fromLift && sec === fromLift) return 'drop';
+  const level = sec?.level ?? 'loud';
+  return level === 'loud' ? 'drop' : level === 'mid' ? 'mid' : m.lift == null ? 'build' : 'calm';
+}
+
+/**
+ * The effects for a shot playing music seconds start to end: a punch (a zoom that snaps in and settles) on its first
+ * beat and on each beat inside it in a drop, a flash at the lift and on the first beat of each phrase after it, a
+ * shake on the strong half-beat hits inside it, a slow push in a build or a calm part. Music seconds.
+ * @returns {{ kind: string, t: number }[]}
+ */
+export function fxFor(/** @type {Measure} */ m, /** @type {number} */ start, /** @type {number} */ end) {
+  const role = roleAt(m, start, end), beat = 60 / m.bpm, eps = 1 / 60;
+  if (role === 'build' || role === 'calm') return [{ kind: 'push', t: start }];
+  if (role === 'rush') return [{ kind: 'soft', t: start }];
+  /** @type {{ kind: string, t: number }[]} */
+  const out = [{ kind: 'punch', t: start }];
+  const phraseStart = m.lift != null && m.bars.some((b) => Math.abs(b - start) < eps && Math.round((b - /** @type {number} */ (m.lift)) / (m.meter * beat)) % 4 === 0 && b >= m.lift - eps);
+  if (m.lift != null && (Math.abs(start - m.lift) < eps || phraseStart)) out.push({ kind: 'flash', t: start });
+  const inside = (/** @type {number} */ t) => t > start + 0.15 && t < end - 0.1;
+  const strong = (/** @type {number} */ t) => (m.accents ?? []).some((a) => Math.abs(a.t - t) < eps && a.strength >= STRONG);
+  for (const b of m.beats) if (inside(b) && (role === 'drop' || strong(b))) out.push({ kind: 'punch', t: b });
+  if (role === 'drop') {
+    for (const a of m.accents ?? []) {
+      if (a.half && a.strength >= STRONG && inside(a.t) && out.every((e) => Math.abs(e.t - a.t) >= 0.15)) out.push({ kind: 'shake', t: a.t });
+    }
+  }
+  return out.sort((a, b) => a.t - b.t || a.kind.localeCompare(b.kind));
+}
+
+/**
+ * A 卡点 plan: which stretch of the music, and the shots on it. Before the lift a shot a bar (two beats in long bars),
+ * the bar into the lift rushing (2, 1, ½, ½ beats), the lift and the loud part a shot a beat on each phrase's first
+ * bar and 1, 1, 2 beats on the others (a punch on the beat inside), mid parts two beats, calm parts a bar, the last
+ * bar one shot to end on. Without `from`, the film starts 4 bars before the lift (2 when 4 would be over half the
+ * film) and runs `length` seconds rounded to whole bars.
+ * @param {Measure} m @param {{ length?: number, from?: number, to?: number }} [o]
+ */
+export function plan(m, o = {}) {
+  const beat = 60 / m.bpm, meter = m.meter, barLen = beat * meter, eps = 1 / 60;
+  const bars = m.bars.length ? m.bars : m.beats.filter((_, k) => k % meter === 0);
+  const length = o.length ?? 30;
+  const nearestBar = (/** @type {number} */ t) => bars.reduce((b, x) => (Math.abs(x - t) < Math.abs(b - t) ? x : b), bars[0]);
+  const soundEnd = m.sound?.end ?? m.duration;
+  let from = o.from;
+  if (from == null) {
+    const li = m.lift == null ? 0 : bars.indexOf(nearestBar(m.lift));
+    let lead = 4 * barLen <= 0.5 * length ? 4 : 2;
+    while (lead > 0 && (li - lead < 0 || bars[li - lead] < (m.sound?.start ?? 0) - eps)) lead -= 2;
+    from = bars[Math.max(0, li - lead)];
+  }
+  let to = o.to;
+  if (to == null) {
+    const n = Math.max(1, Math.round(length / barLen));
+    const fi = bars.findIndex((b) => b >= /** @type {number} */ (from) - eps);
+    to = fi >= 0 && bars[fi + n] != null ? bars[fi + n] : Math.min(soundEnd, from + n * barLen);
+  }
+  to = round(Math.min(to, m.duration));
+  from = round(from);
+  /* shot edges in beats: bar by bar, by what the bar asks */
+  /** @type {{ start: number, end: number }[]} */
+  const shots = [];
+  let k = beatIndex(m, from);
+  if (beatTime(m, k) < from - eps) k++;
+  if (beatTime(m, k) > from + eps) shots.push({ start: from, end: beatTime(m, k) });
+  const barAt = (/** @type {number} */ i) => bars.some((b) => Math.abs(b - beatTime(m, i)) < eps);
+  while (beatTime(m, k) < to - eps) {
+    /* to the next bar line, or the end */
+    let z = k + 1;
+    while (!barAt(z) && z - k < meter) z++;
+    const a = beatTime(m, k), zEnd = Math.min(to, beatTime(m, z));
+    const last = zEnd >= to - eps;
+    const beforeLift = m.lift != null && a < m.lift - eps;
+    const intoLift = beforeLift && Math.abs(beatTime(m, z) - /** @type {number} */ (m.lift)) < eps;
+    const role = roleAt(m, a, a + beat);
+    const fromLift = m.lift != null && !beforeLift ? Math.round((a - m.lift) / barLen) : -1;
+    const span = z - k;
+    /** @type {number[]} */
+    let pattern;
+    if (last) pattern = [span];
+    else if (intoLift && span >= 4) pattern = [span - 2, 1, 0.5, 0.5];
+    else if (beforeLift || role === 'build' || role === 'calm') pattern = barLen > 2.6 && span >= 4 ? [span / 2, span / 2] : [span];
+    else if (role === 'mid') pattern = span >= 4 ? [2, span - 2] : [span];
+    else pattern = fromLift % 4 === 0 || span < 4 ? Array(span).fill(1) : [1, 1, span - 2];
+    let at = k;
+    for (const n of pattern) {
+      const s = beatTime(m, at), e = Math.min(to, beatTime(m, at + n));
+      if (e > s + eps) shots.push({ start: s, end: e });
+      at += n;
+    }
+    k = z;
+  }
+  const slots = shots.map((s) => {
+    const role = last(s) ? 'end' : roleAt(m, s.start, s.end);
+    return {
+      at: round(s.start - from), length: round(s.end - s.start), music: s.start, role,
+      lift: m.lift != null && Math.abs(s.start - m.lift) < eps,
+      fx: role === 'end' ? [] : fxFor(m, s.start, s.end).map((f) => ({ kind: f.kind, at: round(f.t - from) })),
+    };
+    function last(/** @type {{ end: number }} */ x) { return x.end >= /** @type {number} */ (to) - eps; }
+  });
+  return { music: { from, to, bpm: m.bpm, lift: m.lift, liftFilm: m.lift != null && m.lift >= from && m.lift < to ? round(m.lift - from) : null }, length: round(to - from), slots };
+}
+
+/**
+ * CSS keyframes for a clip `length` seconds long with these effects (clip seconds): the zoom (`scale`), the shake
+ * (`translate`) and, when a flash or a punch is in it, the brightness (`filter`, after the clip's own `filter`).
+ */
+export function keyframes(/** @type {string} */ name, /** @type {number} */ length, /** @type {{ kind: string, t: number }[]} */ fx, own = '') {
+  const decay = (/** @type {number} */ x, /** @type {number} */ d) => (x < 0 || x >= d ? 0 : (1 - x / d) ** 2);
+  const next = (/** @type {number} */ t) => Math.min(length, ...fx.filter((e) => e.t > t + 1e-3).map((e) => e.t));
+  const span = (/** @type {{ t: number }} */ e, /** @type {number} */ d) => Math.max(0.04, Math.min(d, next(e.t) - e.t));
+  const push = fx.some((e) => e.kind === 'push');
+  const scale = (/** @type {number} */ t) => {
+    let s = push ? 1 + (FX.push * t) / Math.max(0.01, length) : 1;
+    for (const e of fx) {
+      if (e.kind === 'punch' || e.kind === 'soft') s += (e.kind === 'punch' ? FX.punch : FX.soft) * decay(t - e.t, span(e, 0.25));
+      if (e.kind === 'shake' && t >= e.t && t < e.t + 0.15) s += 0.06;
+    }
+    return s;
+  };
+  const wiggle = [1, -1, 0.5, 0];
+  const shift = (/** @type {number} */ t) => {
+    for (const e of fx) if (e.kind === 'shake' && t >= e.t - 1e-6 && t < e.t + 0.12) return FX.shake * wiggle[Math.min(3, Math.floor((t - e.t) / 0.033 + 1e-6))];
+    return 0;
+  };
+  const bright = (/** @type {number} */ t) => 1 + fx.reduce((b, e) => b + (e.kind === 'flash' ? FX.flash * decay(t - e.t, span(e, 0.15)) : e.kind === 'punch' ? 0.12 * decay(t - e.t, span(e, 0.2)) : 0), 0);
+  const lit = fx.some((e) => e.kind === 'flash' || e.kind === 'punch');
+  const shakes = fx.some((e) => e.kind === 'shake');
+  const times = new Set([0, length]);
+  for (const e of fx) {
+    if (e.t > 0.002) times.add(e.t - 0.001);
+    if (e.kind === 'shake') for (const d of [0, 0.033, 0.066, 0.1, 0.12, 0.15]) times.add(e.t + d);
+    else if (e.kind !== 'push') { const d = span(e, 0.25); for (const f of [0, 0.15, 0.35, 0.6, 1]) times.add(e.t + d * f); }
+  }
+  const stops = [...times].filter((t) => t >= 0 && t <= length + 1e-9).map((t) => Math.round(t * 1000) / 1000).sort((a, b) => a - b).filter((t, i, a) => i === 0 || t - a[i - 1] >= 0.001);
+  const rows = stops.map((t) => {
+    const pct = Math.round((t / length) * 100000) / 1000;
+    const parts = [`scale: ${scale(t).toFixed(4)}`];
+    if (shakes) parts.push(`translate: ${shift(t).toFixed(2)}vw 0`);
+    if (lit) parts.push(`filter: ${own ? `${own} ` : ''}brightness(${bright(t).toFixed(3)})`);
+    return `  ${pct}% { ${parts.join('; ')}; }`;
+  });
+  return `@keyframes ${name} {\n${rows.join('\n')}\n}`;
+}
+
+/** Where each clip's tag is in film.html, on which track, with its attributes. */
+function clipTags(/** @type {string} */ html) {
+  /** @type {{ start: number, end: number, track: number, tag: string, attrs: Record<string, string>, text: string }[]} */
+  const out = [];
+  let track = -1, inSection = false, i = 0;
+  while ((i = html.indexOf('<', i)) !== -1) {
+    if (html.startsWith('<!--', i)) { const z = html.indexOf('-->', i); i = z === -1 ? html.length : z + 3; continue; }
+    let j = i + 1, quote = '';
+    for (; j < html.length; j++) {
+      const c = html[j];
+      if (quote) { if (c === quote) quote = ''; } else if (c === '"' || c === "'") quote = c; else if (c === '>') break;
+    }
+    const text = html.slice(i, j + 1), m = /^<(\/?)([a-zA-Z][\w-]*)/.exec(text);
+    const start = i;
+    i = j + 1;
+    if (!m) continue;
+    const name = m[2].toLowerCase();
+    if (!m[1] && (name === 'style' || name === 'script')) { const z = html.toLowerCase().indexOf(`</${name}`, i); i = z === -1 ? html.length : z; continue; }
+    if (name === 'section') { if (m[1]) inSection = false; else { inSection = true; track++; } continue; }
+    if (!m[1] && inSection && ['video', 'img', 'iframe', 'audio'].includes(name)) out.push({ start, end: j + 1, track, tag: name, attrs: attributes(text.slice(m[0].length, -1)), text });
+  }
+  return out;
+}
+
+/** A tag with an attribute set (or added), the value in double quotes. */
+function setAttr(/** @type {string} */ tag, /** @type {string} */ name, /** @type {string | null} */ value) {
+  const re = new RegExp(`\\s${name}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, 'i');
+  const v = value == null ? '' : ` ${name}="${value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`;
+  if (re.test(tag)) return tag.replace(re, v);
+  if (value == null) return tag;
+  return tag.replace(/\s*(\/?)>$/, (_, slash) => `${v}${slash ? ' /' : ''}>`);
+}
+
+/** A style without what `punch` added: its animation and any older one of its own. */
+function styleWithout(/** @type {string} */ style) {
+  return style.split(';').map((d) => {
+    const m = /^\s*animation\s*:(.*)$/i.exec(d);
+    if (!m) return d;
+    const kept = m[1].split(/,(?![^(]*\))/).filter((a) => !/\bbc-\d+\b/.test(a));
+    return kept.length ? ` animation:${kept.join(',')}` : null;
+  }).filter((d) => d != null && d.trim()).join(';').trim();
+}
+
+/**
+ * The punches written into film.html, by the music: on each picture clip of the main track (the one with the most
+ * pictures), the effects `fxFor` names for the music it plays over, as a CSS animation on the clip's own time and a
+ * `data-beat-fx` that `check` reads. Run again after any change: what it wrote before is replaced.
+ * @param {string} filmFile @param {{ music?: string, out?: string, dry?: boolean }} [o]
+ */
+export async function punch(filmFile, o = {}) {
+  const dir = dirname(resolve(filmFile));
+  let html = readFileSync(filmFile, 'utf8');
+  const tracks = filmTracks(html).filter((t) => !('hidden' in t.attrs));
+  const music = await musicOf(tracks, dir, filmFile, o.music);
+  const m = await measured(join(dir, music.file), o.out ?? join(dir, 'beats'));
+  const toMusic = (/** @type {number} */ t) => music.from + (t - music.at) * music.speed;
+  const tags = clipTags(html);
+  const counts = new Map();
+  for (const t of tags) if (t.tag === 'video' || t.tag === 'img') counts.set(t.track, (counts.get(t.track) ?? 0) + 1);
+  const main = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  /** @type {string[]} */
+  const css = [];
+  /** @type {{ id: string, at: number, fx: { kind: string, t: number }[] }[]} */
+  const done = [];
+  let n = 0;
+  const edits = [];
+  /* the last shot, a bar or longer, ends the film: one hit at its start and then it holds */
+  let lastEnd = 0;
+  for (const t of tags) if (t.track === main && (t.tag === 'video' || t.tag === 'img')) { const c = clipOf(t); const l = await lengthOf(c, dir); if (l != null) lastEnd = Math.max(lastEnd, c.at + l); }
+  const barLen = (m.meter * 60) / m.bpm / music.speed;
+  for (const t of tags) {
+    if (t.tag !== 'video' && t.tag !== 'img') continue;
+    const c = clipOf(t);
+    let style = styleWithout(t.attrs.style ?? '');
+    /** @type {{ kind: string, t: number }[]} */
+    let fx = [];
+    const length = await lengthOf(c, dir);
+    if (t.track === main && length != null && length > 0.05 && c.at >= music.at - 1e-3 && c.at < music.at + music.length - 1e-3) {
+      const a = toMusic(c.at), z = toMusic(Math.min(c.at + length, music.at + music.length));
+      fx = fxFor(m, a, z).map((f) => ({ kind: f.kind, t: round(Math.max(0, (f.t - a) / music.speed)) }));
+      if (c.at + length >= lastEnd - 1 / 60 && length >= 0.9 * barLen) fx = fx.filter((f) => f.t === 0 || f.kind === 'push');
+    }
+    let tag = t.text;
+    if (fx.length && length != null) {
+      const name = `bc-${++n}`;
+      const own = /(?:^|;)\s*filter\s*:\s*([^;]+)/i.exec(style)?.[1].trim() ?? '';
+      css.push(keyframes(name, round(length), fx, own));
+      const anim = `${name} ${round(length)}s linear both`;
+      style = /(?:^|;)\s*animation\s*:/i.test(style) ? style.replace(/((?:^|;)\s*animation\s*:[^;]*)/i, `$1, ${anim}`) : `${style}${style && !style.endsWith(';') ? '; ' : ''}animation: ${anim}`;
+      tag = setAttr(setAttr(tag, 'style', style), 'data-beat-fx', fx.map((f) => `${f.kind} ${f.t}`).join(' '));
+      done.push({ id: c.id, at: c.at, fx });
+    } else {
+      tag = setAttr(setAttr(tag, 'style', style || null), 'data-beat-fx', null);
+    }
+    if (tag !== t.text) edits.push({ start: t.start, end: t.end, tag });
+  }
+  for (const e of edits.sort((a, b) => b.start - a.start)) html = html.slice(0, e.start) + e.tag + html.slice(e.end);
+  html = html.replace(/\s*<style id="beat-cut-fx">[\s\S]*?<\/style>/, '');
+  if (css.length) {
+    const block = `<style id="beat-cut-fx">\n/* written by beat-cut's punch: run it again after changing the cuts */\n${css.join('\n')}\n</style>`;
+    if (/<\/head>/i.test(html)) html = html.replace(/<\/head>/i, `${block}\n</head>`);
+    else if (/<body/i.test(html)) html = html.replace(/<body/i, `<head>\n${block}\n</head>\n<body`);
+    else html = `${block}\n${html}`;
+  }
+  if (!o.dry) writeFileSync(filmFile, html);
+  return { music: music.id, clips: done, html };
+}
+
 /**
  * Every picture cut of a film against its music: each clip's start and end on a shown picture track, in frames from
  * the music's nearest beat; edges less than half a frame apart are one cut. The music is the clip named by `music` (id
@@ -771,20 +1114,10 @@ export async function check(filmFile, o = {}) {
   const fps = o.fps ?? 30;
   const half = 0.5 / fps;
   const tracks = filmTracks(readFileSync(filmFile, 'utf8')).filter((t) => !('hidden' in t.attrs));
-  const sounds = tracks.flatMap((t) => t.clips.filter((c) => c.tag === 'audio').map(clipOf));
-  const named = o.music && sounds.find((s) => s.id === o.music || s.file === o.music || basename(s.file) === o.music);
-  if (o.music && !named) throw new Error(`no sound clip "${o.music}" in ${filmFile}`);
-  const candidates = named ? [named] : sounds.filter((s) => !existsSync(join(dir, s.file.replace(/\.[^./]+$/, '.vtt'))));
-  /** @type {(ReturnType<typeof clipOf> & { length: number }) | undefined} */
-  let music;
-  for (const s of candidates) {
-    const length = await lengthOf(s, dir);
-    if (length != null && (!music || length > music.length)) music = { ...s, length };
-  }
-  if (!music) throw new Error(`no music in ${filmFile}: a sound clip with no .vtt beside it, or --music <clip id>`);
+  const music = await musicOf(tracks, dir, filmFile, o.music);
   const m = await measured(join(dir, music.file), o.out ?? join(dir, 'beats'));
 
-  /** @type {{ id: string, track: number, at: number, end: number | undefined, file: string, from: number, speed: number, tag: string }[]} */
+  /** @type {{ id: string, track: number, at: number, end: number | undefined, file: string, from: number, speed: number, tag: string, fx: { kind: string, t: number }[] }[]} */
   const pictures = [];
   /** @type {{ clip: string, end: number, length: number }[]} */
   const pastEnd = [];
@@ -802,7 +1135,7 @@ export async function check(filmFile, o = {}) {
       }
       if (c.tag === 'audio') continue;
       if (length == null) unknown++;
-      pictures.push({ id: c.id, track: i, at: c.at, end: length == null ? undefined : c.at + length, file: c.file, from: c.from, speed: c.speed, tag: c.tag });
+      pictures.push({ id: c.id, track: i, at: c.at, end: length == null ? undefined : c.at + length, file: c.file, from: c.from, speed: c.speed, tag: c.tag, fx: c.fx });
     }
   }
   /* a picture of no known length shows until the next clip on its track */
@@ -879,8 +1212,11 @@ export async function check(filmFile, o = {}) {
   const pace = [];
   /** @type {Map<number, (typeof pace)[number]>} */
   const bySection = new Map();
+  const rushFrom = m.lift == null ? Infinity : m.lift - (m.meter * 60) / m.bpm - half;
   for (const s of shots) {
     if (!inMusic(s.at) || s.at > music.at + music.length - half) continue;
+    /* the bar that rushes into the lift is not the calm before it */
+    if (m.lift != null && toMusic(s.at) >= rushFrom && toMusic(s.at) < m.lift - half) continue;
     const k = sectionAt(toMusic(s.at));
     if (k < 0) continue;
     const sec = m.sections[k];
@@ -901,8 +1237,10 @@ export async function check(filmFile, o = {}) {
   const total = (/** @type {typeof pace} */ list) => ({ shots: list.reduce((n, p) => n + p.shots, 0), mean: Math.round((list.reduce((n, p) => n + p.mean * p.shots, 0) / (list.reduce((n, p) => n + p.shots, 0) || 1)) * 100) / 100 });
   const slow = total(pace.filter((p) => p.level !== 'loud')), fast = total(pace.filter((p) => p.level === 'loud'));
   const ratio = slow.shots >= 2 && fast.shots >= 2 ? Math.round((slow.mean / fast.mean) * 100) / 100 : null;
-  const perBar = m.loudness.filter((b) => b.start >= used.from - 0.05 && b.end <= used.to + 0.05)
-    .map((b) => ({ db: b.db, cuts: shots.filter((x) => { const t = toMusic(x.at); return t >= b.start - half && t < b.end - half; }).length }));
+  /* a bar's changes are its cuts and punches; the bar that rushes into the lift is left out */
+  const punchesAt = pictures.flatMap((p) => p.fx.filter((f) => f.kind !== 'push' && f.t > half).map((f) => toMusic(p.at + f.t)));
+  const perBar = m.loudness.filter((b) => b.start >= used.from - 0.05 && b.end <= used.to + 0.05 && !(m.lift != null && Math.abs(b.end - m.lift) < 0.05))
+    .map((b) => ({ db: b.db, cuts: shots.filter((x) => { const t = toMusic(x.at); return t >= b.start - half && t < b.end - half; }).length + punchesAt.filter((t) => t >= b.start - half && t < b.end - half).length }));
   const range = perBar.length ? Math.max(...perBar.map((b) => b.db)) - Math.min(...perBar.map((b) => b.db)) : 0;
   const r = perBar.length >= 6 && range >= 6 ? spearman(perBar.map((b) => b.db), perBar.map((b) => b.cuts)) : null;
   const shape = { slow, fast, ratio, bars: perBar.length, r: r == null ? null : Math.round(r * 100) / 100, ok: (ratio == null || ratio >= SLOWER) && (r == null || r >= FOLLOWS) };
@@ -929,6 +1267,30 @@ export async function check(filmFile, o = {}) {
       lift = { music: m.lift, film, inFilm: true, cut: near ? { t: near.t, frames, starts: near.starts, on: Math.abs(/** @type {number} */ (frames)) <= 1 } : null };
     }
   }
+
+  /* the 卡点 feel: of the drop's beats and strong hits, how many the picture marks with a cut or a punch */
+  const filmOf = (/** @type {number} */ x) => music.at + (x - music.from) / music.speed;
+  const tol = 1 / fps + 1e-6;
+  const fxMarks = pictures.flatMap((p) => p.fx.filter((f) => f.kind !== 'push').map((f) => p.at + f.t));
+  const cutMarks = rows.map((c) => c.t);
+  const inUse = (/** @type {number} */ x) => x >= used.from - half && x < used.to - half;
+  /* the last bar is the ending: a shot may hold there */
+  const ending = used.to - (m.meter * 60) / m.bpm - half;
+  const dropBeats = m.lift == null ? [] : m.beats.filter((b) => inUse(b) && b < ending && roleAt(m, b, b + 60 / m.bpm) === 'drop').map(filmOf);
+  const byCut = dropBeats.filter((t) => cutMarks.some((c) => Math.abs(c - t) <= tol));
+  const byFx = dropBeats.filter((t) => !byCut.includes(t) && fxMarks.some((c) => Math.abs(c - t) <= tol));
+  const strongIn = (m.accents ?? []).filter((a) => a.strength >= STRONG && inUse(a.t) && roleAt(m, a.t, a.t + 60 / m.bpm) === 'drop').map((a) => filmOf(a.t));
+  const met = strongIn.filter((t) => cutMarks.concat(fxMarks).some((c) => Math.abs(c - t) <= tol));
+  const calmBeats = m.beats.filter((b) => inUse(b) && ['build', 'calm'].includes(roleAt(m, b, b + 60 / m.bpm))).map(filmOf);
+  const calmCuts = calmBeats.length ? cutMarks.filter((c) => c >= calmBeats[0] - tol && c <= /** @type {number} */ (calmBeats.at(-1)) + tol).length : 0;
+  const share = dropBeats.length ? Math.round(((byCut.length + byFx.length) / dropBeats.length) * 100) / 100 : null;
+  const feel = {
+    drop: dropBeats.length ? { start: round(dropBeats[0]), end: round(/** @type {number} */ (dropBeats.at(-1)) + 60 / m.bpm / music.speed), beats: dropBeats.length, cuts: byCut.length, punches: byFx.length, share } : null,
+    strong: { count: strongIn.length, met: met.length },
+    calm: { beats: calmBeats.length, cuts: calmCuts },
+    punched: fxMarks.length > 0,
+    ok: dropBeats.length < 4 || (share ?? 0) >= MARKED,
+  };
 
   /* where the film enters and leaves the music: on a bar line, or at the music's own start and end */
   const fromBar = (/** @type {number} */ t) => (m.bars.length ? Math.round((snap(m, t, 'bar').off / music.speed) * fps * 10) / 10 : null);
@@ -966,6 +1328,8 @@ export async function check(filmFile, o = {}) {
   if (!phrases.ok) todo.push(`the film starts ${phraseBars} bars before the lift: a whole number of phrases is 4, 8, 12, 16 bars (move the music's in point by whole bars)`);
   if (lift && !lift.inFilm) todo.push(`the lift (music ${lift.music} s) is not in the film: use the music from a phrase before it, unless the person asked for another part`);
   else if (lift?.cut && !lift.cut.on) todo.push(`no cut at the lift (film ${lift.film} s): put the strongest shot there`);
+  if (feel.drop && !feel.ok) todo.push(`the drop (film ${feel.drop.start.toFixed(1)}–${feel.drop.end.toFixed(1)} s) marks only ${feel.drop.cuts + feel.drop.punches} of its ${feel.drop.beats} beats with a cut or a punch (${Math.round((share ?? 0) * 100)}%, want ${Math.round(MARKED * 100)}% or more): a 卡点 drop changes or hits the picture on nearly every beat; cut it one or two beats a shot (\`beats.mjs plan\` gives the slots)${feel.punched ? ' and run `beats.mjs punch film.html` again' : ', then run `beats.mjs punch film.html`'}`);
+  else if (feel.drop && !feel.punched) todo.push('no punches yet: run `beats.mjs punch film.html` for a zoom punch on the beats inside the drop\'s shots, a flash at the lift and on each phrase, and a shake on the strong hits');
   if (barred.length) todo.push(`black bars in the picture of ${barred.length} shot${barred.length === 1 ? '' : 's'} (${barred.slice(0, 6).map((b) => `${b.clip} at film ${b.at.toFixed(2)} s, ${b.side}`).join('; ')}${barred.length > 6 ? '; …' : ''}): they are in the clip's own picture; scale or crop each clip with CSS until the frame is picture`);
   const own = black.filter((b) => b.cause === 'source'), drawn = black.filter((b) => b.cause === 'render');
   const seam = black.filter((b) => b.cause === 'hole');
@@ -988,6 +1352,7 @@ export async function check(filmFile, o = {}) {
     phrases,
     warnings,
     lift,
+    feel,
     render: render ? basename(render) : null,
     barred,
     black,
@@ -1136,12 +1501,42 @@ async function main(/** @type {string[]} */ argv) {
     else if (argv[k].startsWith('--')) flags.set(argv[k], argv[++k]);
     else rest.push(argv[k]);
   }
-  const usage = 'node beats.mjs <music> [--out beats] [--meter 4] [--bpm <n>] [--bar <seconds>]\n       node beats.mjs snap <beats.json> <seconds…> [--to beat|half|bar|hit]\n       node beats.mjs check [film.html] [--music <clip id or file>] [--fps 30] [--out <dir>] [--json] [--strict]';
+  const usage = 'node beats.mjs <music> [--out beats] [--meter 4] [--bpm <n>] [--bar <seconds>]\n       node beats.mjs plan <beats.json> [--length <film s>] [--from <music s>] [--to <music s>] [--json]\n       node beats.mjs punch [film.html] [--music <clip id or file>] [--dry]\n       node beats.mjs snap <beats.json> <seconds…> [--to beat|half|bar|hit]\n       node beats.mjs check [film.html] [--music <clip id or file>] [--fps 30] [--out <dir>] [--json] [--strict]';
   if (!rest.length || rest[0] === '--help' || flags.has('--help')) { console.log(usage); return 0; }
+  const self = ((p) => (/\s/.test(p) ? `"${p}"` : p))(fileURLToPath(import.meta.url).split('\\').join('/'));
   if (rest[0] === 'snap') {
     const m = JSON.parse(readFileSync(rest[1], 'utf8'));
     const to = flags.get('--to') ?? 'beat';
     for (const t of rest.slice(2).map(Number)) console.log(JSON.stringify(snap(m, t, to)));
+    return 0;
+  }
+  if (rest[0] === 'plan') {
+    if (!rest[1]) { console.log(usage); return 2; }
+    const m = JSON.parse(readFileSync(rest[1], 'utf8'));
+    const num = (/** @type {string} */ k) => (flags.has(k) ? Number(flags.get(k)) : undefined);
+    const p = plan(m, { length: num('--length'), from: num('--from'), to: num('--to') });
+    const out = rest[1].replace(/\.json$/, '') + '.plan.json';
+    writeFileSync(out, JSON.stringify(p, null, 1));
+    if (flags.has('--json')) { console.log(JSON.stringify(p, null, 1)); return 0; }
+    const name = m.file;
+    console.log(`plan: music ${name} ${p.music.from}–${p.music.to} s → film 0–${p.length} s, ${p.music.bpm} BPM${p.music.liftFilm != null ? `, the lift at film ${p.music.liftFilm} s` : ', no lift in it'}; ${p.slots.length} shots`);
+    for (const s of p.slots) {
+      const fx = s.fx.filter((f) => f.kind !== 'push').map((f) => `${f.kind}${Math.abs(f.at - s.at) > 1e-3 ? ` +${round(f.at - s.at)}` : ''}`).join(' ');
+      console.log(`  at ${s.at.toFixed(3).padStart(7)}  ${s.length.toFixed(3)} s  ${s.role.padEnd(5)}${s.lift ? '  ← the lift: the strongest moment' : ''}${fx ? `  ${fx}` : ''}`);
+    }
+    const by = (/** @type {string} */ r) => p.slots.filter((s) => s.role === r).length;
+    console.log(`  ${by('build')} build (calm, a slow push), ${by('rush')} rushing into the lift, ${by('drop')} in the drop (a cut or a punch on every beat), ${by('mid') + by('calm')} after it, 1 to end on`);
+    console.log(`  ${out}`);
+    console.log(`NEXT: in film.html put the music at 0 as <audio src="<music>#t=${p.music.from},${p.music.to}" at="0"> and one clip per shot, each <video> at its "at" for its length (#t=in,in+length, at = the previous at + its length, exactly). Use a different moment for each shot, the strongest at the lift, motion in the drop. Then run: node ${self} punch film.html (the zoom punches, flashes and shakes), then check.`);
+    return 0;
+  }
+  if (rest[0] === 'punch') {
+    const film = rest[1] ?? 'film.html';
+    const r = await punch(film, { music: flags.get('--music'), out: flags.get('--out'), dry: flags.has('--dry') });
+    const count = (/** @type {string} */ k) => r.clips.reduce((n, c) => n + c.fx.filter((f) => f.kind === k).length, 0);
+    console.log(`punch: ${r.clips.length} clip${r.clips.length === 1 ? '' : 's'} over ${r.music}: ${count('punch')} zoom punches, ${count('flash')} flashes, ${count('shake')} shakes, ${count('soft')} small punches into the lift, ${count('push')} slow pushes in calm parts${flags.has('--dry') ? ' (dry run: film.html not changed)' : `, written into ${film} (<style id="beat-cut-fx"> and each clip's animation and data-beat-fx)`}`);
+    if (!r.clips.length) console.log('  nothing to punch: no picture clip over the music on the main track');
+    console.log('NEXT: run check, then render and look at the lift and two drop beats (npx openfilm look <t>). Run punch again after changing any cut.');
     return 0;
   }
   if (rest[0] === 'check') {
@@ -1188,10 +1583,13 @@ async function main(/** @type {string[]} */ argv) {
         else if (c?.on) console.log(`${head}: ${c.starts.length ? `${c.starts.join(', ')} start${c.starts.length === 1 ? 's' : ''}` : 'a cut, but nothing starts there'}`);
         else console.log(`${head}: no cut at the lift${c ? ` (nearest cut ${c.t} s, ${c.frames > 0 ? '+' : ''}${c.frames} frames${c.starts.length ? `: ${c.starts.join(', ')}` : ''})` : ''}`);
       }
-      if (r.render) console.log(`picture: ${r.barred.length ? `${r.barred.length} shot(s) with black bars` : 'no black bars'}, ${r.black.length ? `${r.black.length} black frame(s) inside the film (${r.black.map((b) => `${b.at.toFixed(2)} s`).join(', ')})` : 'no black frames inside the film'}, in the render ${r.render}`);
+      const f = r.feel;
+      if (f.drop) console.log(`卡点 feel: the drop, film ${f.drop.start.toFixed(1)}–${f.drop.end.toFixed(1)} s, marks ${f.drop.cuts + f.drop.punches} of ${f.drop.beats} beats (${Math.round((f.drop.share ?? 0) * 100)}%; want ${Math.round(MARKED * 100)}%): ${f.drop.cuts} by a cut, ${f.drop.punches} by a punch; strong hits marked ${f.strong.met} of ${f.strong.count}${f.calm.beats ? `; before the lift and in calm parts a cut every ${f.calm.cuts ? (f.calm.beats / f.calm.cuts).toFixed(1) : f.calm.beats} beats` : ''}`);
+      else console.log('卡点 feel: no drop in the music the film uses (no loud part after a lift)');
+      if (r.render) console.log(`picture:${r.barred.length ? `${r.barred.length} shot(s) with black bars` : 'no black bars'}, ${r.black.length ? `${r.black.length} black frame(s) inside the film (${r.black.map((b) => `${b.at.toFixed(2)} s`).join(', ')})` : 'no black frames inside the film'}, in the render ${r.render}`);
       console.log(r.todo.length ? `TO DO (${r.todo.length}):\n${r.todo.map((t) => `  - ${t}`).join('\n')}` : 'TO DO: nothing in the cuts.');
     }
-    return flags.has('--strict') && (r.onGrid < r.cuts.length || r.gaps.length || r.pastEnd.length || !r.shape.ok || r.barred.length || r.black.length) ? 1 : 0;
+    return flags.has('--strict') && (r.onGrid < r.cuts.length || r.gaps.length || r.pastEnd.length || !r.shape.ok || !r.feel.ok || r.barred.length || r.black.length) ? 1 : 0;
   }
   const file = rest[0];
   if (!existsSync(file)) throw new Error(`no file ${file}`);
@@ -1207,7 +1605,10 @@ async function main(/** @type {string[]} */ argv) {
   if (other) console.log(`  it may also be ${other} BPM: if the beats feel wrong, run again with --bpm ${other}`);
   const advice = barAdvice(m, join(out, `${name}.html`));
   if (advice) console.log(`  ${advice}`);
+  const strong = (m.accents ?? []).filter((a) => a.strength >= STRONG).length;
+  console.log(`  ${strong} strong accents (kick, snare, clap) on the beats and half beats, the hits a 卡点 drop marks`);
   console.log(`  ${join(out, `${name}.json`)}, ${join(out, `${name}.html`)}`);
+  console.log(`NEXT: node ${self} plan ${join(out, `${name}.json`)} --length <the film's seconds> for the stretch of music and the shots`);
   return 0;
 }
 

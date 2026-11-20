@@ -1,5 +1,5 @@
 {
-  "version": "0.4.0",
+  "version": "0.4.1",
   "repository": "https://github.com/WEBGRS/openfilm-beat-cut/tree/main/skills/beat-cut",
   "kind": "workflow",
   "order": 25,
@@ -32,5 +32,28 @@
     "ja": "こんなときに：卡点（ビート同期）動画、モンタージュ、スポーツ・旅行・イベントのハイライト。\nすること：まず音楽を測り（テンポ、一直線の拍、小節、キックとスネアのアクセント、静かな部分と盛り上がる部分、曲が上がる位置）、それに沿ってショットを組み（上がる前は1小節に1ショット、そこへ駆け込み、その後は1〜2拍に1ショット）、ズームの衝撃・フラッシュ・揺れを素材を再エンコードせずに CSS で書き込みます。渡す前に作品を点検します：すべてのカットのフレーム誤差、サビの拍のうちカットか衝撃が入った割合、上がる前のショットが後より長いか、曲のどこから始まりどこで終わるか、映像の中の黒い帯や黒いフレーム。",
     "ko": "이럴 때: 卡点(비트 싱크) 영상, 몽타주, 스포츠·여행·행사 하이라이트.\n하는 일: 먼저 음악을 측정하고(템포, 일직선의 박, 마디, 킥과 스네어 악센트, 조용한 부분과 큰 부분, 음악이 올라가는 위치), 그에 맞춰 장면을 배치하고(올라가기 전에는 한 마디에 한 장면, 그곳으로 몰아치고, 그 뒤로는 한두 박에 한 장면), 줌 펀치·플래시·흔들림을 영상을 다시 인코딩하지 않고 CSS로 씁니다. 넘기기 전에 영상을 점검합니다: 모든 컷의 프레임 오차, 드롭의 박 중 컷이나 펀치가 들어간 비율, 올라가기 전 장면이 뒤보다 긴지, 음악의 어디서 시작해 어디서 끝나는지, 화면 속 검은 띠와 검은 프레임.",
     "es": "Ideal para: edición 卡点 al ritmo, montajes, resúmenes de deporte, viajes y eventos.\nQué hace: primero mide la música (tempo, una línea recta de tiempos, compases, los acentos de bombo y caja, partes suaves y fuertes, dónde sube), planifica los planos sobre ella (un compás cada uno antes de la subida, una carrera hacia ella, uno o dos tiempos cada uno después), escribe los golpes de zoom, destellos y sacudidas como CSS sobre tus clips sin recodificarlos y, antes de entregar, revisa la película: cada corte en fotogramas, la parte de los tiempos del drop que marca un corte o un golpe, planos más largos antes de la subida que después, dónde empieza y termina en la música, y franjas o fotogramas negros en la imagen."
+  },
+  "permissions": {
+    "agent": {
+      "scripts": true,
+      "why": {
+        "en": "The agent runs scripts/beats.mjs, which runs ffmpeg and ffprobe to measure the music and check the cuts.",
+        "zh-CN": "智能体运行 scripts/beats.mjs，它调用 ffmpeg 和 ffprobe 测音乐、查剪辑点。",
+        "ja": "エージェントが scripts/beats.mjs を実行し、それが ffmpeg と ffprobe で音楽を測りカットを確認します。",
+        "ko": "에이전트가 scripts/beats.mjs를 실행하고, 이 스크립트가 ffmpeg와 ffprobe로 음악을 측정하고 컷을 확인합니다.",
+        "es": "El agente ejecuta scripts/beats.mjs, que usa ffmpeg y ffprobe para medir la música y comprobar los cortes."
+      }
+    },
+    "project": {
+      "read": true,
+      "write": true,
+      "why": {
+        "en": "It reads the music, film.html and the render; it writes the measured beats and plan to beats/ and adds the punch effects to film.html.",
+        "zh-CN": "它读取音乐、film.html 和导出的成片；把测出的拍点和镜头计划写进 beats/，把冲击效果写进 film.html。",
+        "ja": "音楽、film.html、書き出した映像を読み、測った拍とショット計画を beats/ に、衝撃エフェクトを film.html に書き込みます。",
+        "ko": "음악, film.html, 내보낸 영상을 읽고, 측정한 박과 장면 계획을 beats/에, 펀치 효과를 film.html에 씁니다.",
+        "es": "Lee la música, film.html y el render; escribe los tiempos medidos y el plan en beats/ y añade los golpes a film.html."
+      }
+    }
   }
 }

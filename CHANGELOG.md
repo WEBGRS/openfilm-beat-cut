@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- openfilm.json declares its permissions, as the OpenFilm Community asks: the agent runs `scripts/beats.mjs` (which runs ffmpeg and ffprobe), and it reads the project and writes `beats/` and `film.html`. Nothing else changes.
+
 ## 0.4.0
 
 Tried on the climaxes of nine songs from a Bilibili 卡点 mix, each cut to start about a bar before its drop. 0.3.0 measured three of them wrong, and one film showed it.
